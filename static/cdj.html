@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>CDJ — setpiece</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/cdj.css">
+</head>
+<body>
+    <!-- v2 LAYOUT — per VJ research (see VJ_ROADMAP.md):
+         the BANK GRID is the hero, not a sidebar. CDJ-style giant BPM
+         is demoted to a top strip. Two preview thumbs (LIVE + CUE)
+         are the secondary focal points — matches "preview is the
+         headphone equivalent for VJs" pattern from ArKaos/Resolume.
+         Status badges live in a single thin strip at top. -->
+
+    <div id="error-banner" hidden></div>
+
+    <!-- Row 1: slim status strip (6vh). Just the mode badges. -->
+    <header class="status-row">
+        <span class="player-tag">CDJ</span>
+        <div class="status-badges">
+            <span id="badge-react"   class="badge badge-off">REACT</span>
+            <span id="badge-flip"    class="badge badge-off">FLIP OFF</span>
+            <span id="badge-tempo"   class="badge badge-off">TEMPO</span>
+            <span id="badge-stutter" class="badge badge-off">STUTTER</span>
+            <span id="badge-pin"     class="badge badge-off">PIN</span>
+            <span id="badge-arc"     class="badge badge-off">ARC</span>
+        </div>
+        <span id="badge-conn" class="badge badge-conn-off">OFFLINE</span>
+    </header>
+
+    <!-- Row 2: compact meta strip (8vh). Filename + medium BPM + time. -->
+    <section class="meta-row">
+        <div class="meta-filename" id="meta-filename">No video loaded</div>
+        <div class="meta-numbers">
+            <span class="meta-bpm-block">
+                <span id="meta-bpm" class="meta-bpm">---</span>
+                <span class="meta-bpm-label">BPM</span>
+            </span>
+            <span class="meta-time">
+                <span id="meta-position">00:00</span>
+                <span class="meta-time-sep">/</span>
+                <span id="meta-duration" class="meta-duration">00:00</span>
+            </span>
+            <span id="meta-speed" class="meta-speed">1.00x</span>
+        </div>
+    </section>
+
+    <!-- Row 3: previews + phase (16vh). LIVE thumb (left) +
+         CUE/NEXT thumb (middle) + phase bar + beat counter (right). -->
+    <section class="preview-row">
+        <div class="preview-cell preview-live">
+            <div class="preview-label">LIVE</div>
+            <img id="preview-live-img" alt="live thumb">
+            <div class="preview-progress"><div id="preview-progress-fill"></div></div>
+        </div>
+        <div class="preview-cell preview-cue">
+            <div class="preview-label">CUE / NEXT</div>
+            <img id="preview-cue-img" alt="cue thumb">
+        </div>
+        <div class="phase-cell">
+            <div class="phase-bar">
+                <div class="phase-bar-fill" id="phase-bar-fill"></div>
+            </div>
+            <div class="phase-counter" id="phase-counter">·</div>
+        </div>
+    </section>
+
+    <!-- Row 4: BANK GRID — THE HERO (60vh). 2x8 cells, each a giant
+         lit pad. Cells get color-tinted border once color tags land
+         in DB (from color_tagger.py running now). Active = green
+         outline + glow. Pinned = yellow. -->
+    <section class="bank-hero">
+        <div class="bank-grid" id="bank-grid">
+            <!-- 16 cells populated by JS -->
+        </div>
+    </section>
+
+    <!-- Row 5: bank tabs (10vh). A-H tabs so operator sees at a
+         glance which bank is active + can poll others' contents
+         (info-only — tapping does NOT switch banks; that's a
+         hardware-fire operation). -->
+    <footer class="bank-tabs" id="bank-tabs">
+        <!-- 8 tabs populated by JS -->
+    </footer>
+
+    <script>
+        window.onerror = (m, src, ln, col, e) => {
+            const b = document.getElementById('error-banner');
+            b.textContent = `JS ERROR: ${m} @ ${src}:${ln}:${col}`;
+            b.hidden = false;
+        };
+        window.addEventListener('unhandledrejection', (ev) => {
+            const b = document.getElementById('error-banner');
+            b.textContent = `PROMISE REJECT: ${ev.reason}`;
+            b.hidden = false;
+        });
+    </script>
+    <script src="/cdj.js" defer></script>
+</body>
+</html>

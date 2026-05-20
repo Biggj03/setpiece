@@ -1,0 +1,407 @@
+/* CDJ Tier-3 v2 — VJ-NATIVE LAYOUT (per VJ_ROADMAP.md research).
+   Hero is the BANK GRID, not the BPM number. Preview thumbs (LIVE +
+   CUE) are the secondary focal points. Status badges and metadata
+   live in thin top strips. No crossfader, no deck-centric chrome.
+
+   Layout (5 vertical bands):
+     [status]    6vh   - mode badges only
+     [meta]      8vh   - filename + small BPM + time + speed
+     [preview]  16vh   - live thumb + cue thumb + phase bar/counter
+     [bank-hero] 60vh  - giant 2x8 bank grid (the hero)
+     [bank-tabs] 10vh  - A-H bank tabs (info-only)
+*/
+
+:root {
+    --bg-black:        #0f172a;
+    --bg-panel:        #121212;
+    --bg-strip:        #1a1a1a;
+    --bg-cell:         #1a1a1a;
+    --bg-cell-active:  #2d3748;
+
+    --freq-low:        #3b82f6;
+    --freq-mid:        #f59e0b;
+    --freq-high:       #ffffff;
+
+    --accent-sync:     #ef4444;
+    --accent-slip:     #eab308;
+    --accent-active:   #22c55e;
+    --accent-cue:      #06b6d4;
+
+    --text-primary:    #ffffff;
+    --text-secondary:  #999999;
+    --text-tertiary:   #555555;
+
+    /* CDJ standard 8-cue color rotation (used for cue mode later) */
+    --pad-blue:    #3b82f6;
+    --pad-green:   #22c55e;
+    --pad-red:     #ef4444;
+    --pad-amber:   #eab308;
+    --pad-purple:  #a855f7;
+    --pad-cyan:    #06b6d4;
+    --pad-orange:  #f97316;
+    --pad-pink:    #ec4899;
+
+    --font-cdj: 'Barlow Condensed', 'Oswald', 'Teko', system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+    height: 100%;
+    width: 100%;
+    background: var(--bg-black);
+    color: var(--text-primary);
+    font-family: var(--font-cdj);
+    overflow: hidden;
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+body {
+    display: grid;
+    grid-template-rows: 6vh 8vh 16vh 60vh 10vh;
+    gap: 0;
+}
+
+#error-banner {
+    position: fixed;
+    inset: 0 0 auto 0;
+    background: #7f1d1d;
+    color: #fff;
+    padding: 8px 16px;
+    font-size: 14px;
+    z-index: 100;
+}
+
+/* ── Row 1: status (6vh) ────────────────────────────────────────────── */
+
+.status-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    background: var(--bg-strip);
+    border-bottom: 2px solid #000;
+}
+.player-tag {
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+}
+.status-badges {
+    display: flex;
+    gap: 6px;
+}
+.badge {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    border-radius: 3px;
+    background: var(--bg-cell);
+    color: var(--text-tertiary);
+    transition: background 120ms ease, color 120ms ease,
+                box-shadow 120ms ease;
+}
+.badge-on        { background: var(--accent-sync);   color: #fff; box-shadow: 0 0 8px rgba(239,68,68,0.4); }
+.badge-on-green  { background: var(--accent-active); color: #000; box-shadow: 0 0 8px rgba(34,197,94,0.4); }
+.badge-on-amber  { background: var(--accent-slip);   color: #000; box-shadow: 0 0 8px rgba(234,179,8,0.4); }
+.badge-off       { background: var(--bg-cell);       color: var(--text-tertiary); }
+.badge-conn-on   { background: var(--accent-active); color: #000; }
+.badge-conn-off  { background: #7f1d1d;               color: #fff; }
+
+/* ── Row 2: meta (8vh) ──────────────────────────────────────────────── */
+
+.meta-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 24px;
+    padding: 0 20px;
+    background: #0a0e18;
+    border-bottom: 1px solid #000;
+}
+.meta-filename {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    letter-spacing: 0.01em;
+}
+.meta-numbers {
+    display: flex;
+    align-items: baseline;
+    gap: 18px;
+}
+.meta-bpm-block {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+}
+.meta-bpm {
+    font-size: 32px;
+    line-height: 1;
+    font-weight: 900;
+    color: var(--accent-active);
+    font-variant-numeric: tabular-nums;
+}
+.meta-bpm-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    color: var(--text-secondary);
+}
+.meta-time {
+    font-size: 22px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
+}
+.meta-time-sep { margin: 0 4px; color: var(--text-tertiary); }
+.meta-duration { color: var(--text-secondary); }
+.meta-speed {
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+    font-variant-numeric: tabular-nums;
+    min-width: 56px;
+    text-align: right;
+}
+
+/* ── Row 3: previews + phase (16vh) ─────────────────────────────────── */
+
+.preview-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px;
+    padding: 8px 16px;
+    background: #050a14;
+    border-bottom: 1px solid #000;
+}
+.preview-cell {
+    position: relative;
+    background: var(--bg-cell);
+    border-radius: 4px;
+    overflow: hidden;
+}
+.preview-live {
+    box-shadow: inset 0 0 0 2px rgba(34, 197, 94, 0.5);
+}
+.preview-cue {
+    box-shadow: inset 0 0 0 2px rgba(6, 182, 212, 0.5);
+}
+.preview-cell img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+.preview-label {
+    position: absolute;
+    top: 4px;
+    left: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #fff;
+    background: rgba(0, 0, 0, 0.6);
+    padding: 2px 6px;
+    border-radius: 2px;
+    z-index: 2;
+}
+.preview-progress {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 3px;
+    background: rgba(0,0,0,0.4);
+}
+.preview-progress > div {
+    width: 0;
+    height: 100%;
+    background: var(--accent-sync);
+    transition: width 200ms linear;
+}
+
+/* Phase cell — bar on top, big counter below */
+.phase-cell {
+    display: grid;
+    grid-template-rows: auto 1fr;
+    align-items: center;
+    background: var(--bg-cell);
+    border-radius: 4px;
+    padding: 8px 12px;
+    gap: 6px;
+}
+.phase-bar {
+    position: relative;
+    height: 16px;
+    background: #050a14;
+    border-radius: 3px;
+    overflow: hidden;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.6);
+}
+.phase-bar-fill {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 0%;
+    background: linear-gradient(90deg,
+        var(--accent-active) 0%,
+        var(--accent-slip)   60%,
+        var(--accent-sync)   100%);
+    transition: width 16ms linear;
+}
+.phase-bar-fill.idle { background: var(--text-tertiary); }
+.phase-counter {
+    font-size: 64px;
+    line-height: 1;
+    font-weight: 900;
+    color: var(--accent-sync);
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+    transition: transform 80ms ease, color 80ms ease;
+}
+.phase-counter.beat-pulse {
+    transform: scale(1.15);
+    color: #fff;
+    text-shadow: 0 0 16px var(--accent-sync);
+}
+.phase-counter.idle { color: var(--text-tertiary); }
+
+/* ── Row 4: BANK GRID — THE HERO (60vh) ─────────────────────────────── */
+
+.bank-hero {
+    padding: 12px 16px;
+    background: #000;
+}
+.bank-grid {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    grid-template-rows: repeat(2, 1fr);
+    gap: 12px;
+    width: 100%;
+    height: 100%;
+}
+.pad {
+    background: var(--bg-cell);
+    border-radius: 6px;
+    overflow: hidden;
+    position: relative;
+    min-height: 0;
+    /* Color tint: comes from --pad-tint CSS var (set by JS from
+       palette tag once color_tagger run completes). Falls back to
+       transparent until colors land in DB. */
+    box-shadow: inset 0 0 0 3px var(--pad-tint, transparent);
+    transition: box-shadow 200ms ease;
+}
+.pad-thumb {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    opacity: 0.85;
+}
+.pad-empty {
+    background: #050a14;
+    border: 1px dashed #1a1a1a;
+}
+.pad-active {
+    box-shadow: 0 0 16px var(--accent-active),
+                inset 0 0 0 4px var(--accent-active);
+}
+.pad-pinned {
+    box-shadow: 0 0 16px var(--accent-slip),
+                inset 0 0 0 4px var(--accent-slip);
+}
+.pad-label {
+    position: absolute;
+    top: 6px;
+    left: 6px;
+    font-size: 16px;
+    font-weight: 900;
+    color: #fff;
+    background: rgba(0, 0, 0, 0.65);
+    padding: 2px 8px;
+    border-radius: 3px;
+    line-height: 1;
+}
+.pad-hue {
+    position: absolute;
+    bottom: 6px;
+    right: 6px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--pad-tint, transparent);
+    box-shadow: 0 0 4px rgba(0,0,0,0.5);
+}
+
+/* ── Row 5: bank tabs (10vh) ─────────────────────────────────────────── */
+
+.bank-tabs {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 6px;
+    padding: 8px 16px 12px;
+    background: var(--bg-strip);
+    border-top: 2px solid #000;
+}
+.bank-tab {
+    background: var(--bg-cell);
+    border-radius: 4px;
+    padding: 6px 8px;
+    display: grid;
+    grid-template-rows: auto 1fr;
+    align-items: center;
+    gap: 2px;
+    text-align: center;
+    transition: background 120ms ease, box-shadow 120ms ease;
+}
+.bank-tab-letter {
+    font-size: 20px;
+    font-weight: 900;
+    line-height: 1;
+    color: var(--text-secondary);
+    letter-spacing: 0.04em;
+}
+.bank-tab-name {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.bank-tab.active {
+    background: var(--accent-active);
+    box-shadow: 0 0 12px rgba(34,197,94,0.5);
+}
+.bank-tab.active .bank-tab-letter,
+.bank-tab.active .bank-tab-name {
+    color: #000;
+}
+
+/* ── responsive: portrait iPad ───────────────────────────────────────── */
+
+@media (orientation: portrait) {
+    body {
+        grid-template-rows: 5vh 6vh 14vh 65vh 10vh;
+    }
+    .meta-bpm { font-size: 26px; }
+    .phase-counter { font-size: 48px; }
+    .bank-grid {
+        grid-template-columns: repeat(4, 1fr);
+        grid-template-rows: repeat(4, 1fr);
+    }
+}

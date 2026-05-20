@@ -1,0 +1,29 @@
+# Setpiece — optional / heavy dependencies.
+# None of these are needed to run the engine. Each unlocks one opt-in
+# feature; the code degrades gracefully (the feature self-disables) when
+# the dependency is absent. Install with:  pip install -r requirements-optional.txt
+
+# Semantic CLIP embeddings — powers the `vision` tagger stage and
+# free-text "find clips like this" search / vibe-banks.
+torch>=2.0
+open-clip-torch>=2.20
+huggingface_hub>=0.16
+onnxruntime>=1.16
+
+# Subject-placement (pose) tagging — YOLOv8-pose.
+ultralytics>=8.0
+
+# Neural drum-stem isolation for stem-accurate onset detection
+# (stem_daemon.py — opt-in, separate process).
+openunmix>=1.2
+
+# PLL beat tracking — higher-accuracy beat phase than the default
+# numpy spectral-flux detector.
+BeatNet>=1.1.0
+
+# Anthropic Vision tagger (ai_tagger.py) — optional cloud tagging.
+anthropic>=0.39
+
+# Elgato Stream Deck integration (clip browser on the deck keys).
+# Ships disabled by default; stream_deck.py self-disables if absent.
+streamdeck>=0.9.5

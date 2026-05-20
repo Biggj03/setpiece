@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <title>setpiece</title>
+    <!-- Barlow Condensed = web-safe stand-in for Pioneer's brutalist
+         condensed typography. Used in the sticky status strip + future
+         CDJ-aesthetic surfaces. See CDJ_AESTHETIC.md. (2026-05-17.) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/control.css">
+</head>
+<body>
+    <div id="error-banner" class="hidden"></div>
+
+    <!-- Sticky status strip — read-only at-a-glance: what's playing,
+         where we are in it, BPM + react/play state, conn dot. No buttons.
+         Replaces the old Now Playing / Clip Markers / Audio Reactive /
+         S2 mirror panels (audit 2026-05-16). -->
+    <header class="status-strip" id="status-strip">
+        <div class="ss-line ss-line-file">
+            <span id="current-file" class="ss-filename">No video loaded</span>
+            <span id="connection-status" class="status-dot offline" title="connection"></span>
+        </div>
+        <div class="ss-line ss-line-meta">
+            <span id="position" class="ss-time">00:00.000</span>
+            <span class="ss-time-sep">/</span>
+            <span id="duration" class="ss-time ss-time-dur">00:00.000</span>
+            <span class="ss-divider">·</span>
+            <span id="audio-bpm" class="ss-bpm">--- BPM</span>
+            <!-- Phase meter: thin bar fills L→R over each beat period
+                 + 4-step bar counter pulses on each beat. When REACT-on
+                 + flip-on-beat-on, the bar reaching 100% = an auto-flip
+                 fired. So watching the meter tells you when the next
+                 flip is incoming. Idle (REACT-off) = dim grey. Active
+                 = CDJ red (#ef4444) — same accent as SYNC. -->
+            <span id="phase-meter" class="ss-phase" aria-label="beat phase">
+                <span id="phase-fill" class="ss-phase-fill"></span>
+                <span id="phase-beat" class="ss-phase-beat">1</span>
+            </span>
+            <span class="ss-divider">·</span>
+            <span id="audio-state" class="ss-react ss-react-off">REACT OFF</span>
+            <span class="ss-divider">·</span>
+            <!-- Live phrase spotter latest-hit indicator. Empty when
+                 spotter is off or has no recent hits. Bright orange
+                 within 4s of a hit, dims after 10s, hides after 30s. -->
+            <span id="ss-phrase" class="ss-phrase ss-phrase-idle"
+                  title="latest phrase heard by live spotter (tap MK2 SAMPLING to toggle)"></span>
+            <!-- Stem-onset pulse indicator. Shows when stem_daemon.py
+                 is feeding /stem/drums/onset OSC events. Pulses bright
+                 magenta on each kick (while boost_active=true). -->
+            <span id="ss-stems" class="ss-stems ss-stems-idle"
+                  title="stem_daemon kick onset detector (start: python stem_daemon.py)"></span>
+            <!-- Cohesion anchor indicator. Shows the seed file name
+                 + seconds-remaining on the current locked "music-video
+                 shoot" subset. Tap to force re-roll. Hidden when
+                 cohesion disabled or no anchor active. -->
+            <span id="ss-cohesion" class="ss-cohesion ss-cohesion-idle"
+                  title="tap to re-roll cohesion anchor"></span>
+            <span id="play-icon" class="ss-play ss-paused">PAUSED</span>
+        </div>
+        <div class="ss-progress">
+            <div id="progress-fill"></div>
+        </div>
+        <!-- ARC tile: thumb-sized button pinned to the top-right of
+             the status strip. Phase color readable from across the
+             room. Tap = cycle phase, long-press 550ms = toggle AUTO.
+             Element id stays `ss-arc` so existing JS handlers attach
+             without changes. -->
+        <button id="ss-arc" class="ss-arc-tile ss-arc-off"
+                type="button" aria-label="set-arc phase"
+                title="tap = cycle phase, long-press = toggle auto">ARC</button>
+    </header>
+
+    <!-- Quick-fire bar: persistent search + AUTO-BANK pinned under
+         the status strip. The second-most-prominent action on the
+         page after the ARC tile. Type a name + ENTER to one-shot
+         bank that tag's clips across A-H. -->
+    <section class="quick-fire-bar">
+        <input type="text" id="tag-search-input"
+               class="tag-search-input qf-input"
+               placeholder="type name -> ENTER (abigail, vampires, opening...)"
+               autocomplete="off" spellcheck="false">
+        <button type="button" id="auto-bank-btn" class="qf-bank-btn">
+            AUTO-BANK A-H
+        </button>
+        <!-- OPENERS lives here (not in Semantic Search) — it's a
+             bank-build action, sibling to AUTO-BANK. Builds A-H from
+             intro-tagged opener clips, split by intro length. -->
+        <button type="button" id="openers-btn"
+                class="qf-bank-btn qf-openers-btn"
+                title="Build A-H banks from intro-tagged opener clips, split by intro length">
+            ▶ OPENERS
+        </button>
+        <span class="auto-bank-hint qf-hint" id="auto-bank-hint">
+            tap chips + AUTO-BANK · or type + ENTER
+        </span>
+    </section>
+
+    <!-- Openers launcher: collapsible list of all clips tagged
+         `opener` / `transition-rich`. Tap a row to fire that
+         specific clip segment (uses in/out marks). Great for
+         set OPENING / BREAKDOWN where you want a known-good
+         non-explicit segment fired immediately. -->
+    <section class="openers-bar">
+        <details id="openers-details">
+            <summary class="openers-summary">
+                <span class="openers-title" id="openers-title">CLIPS</span>
+                <span class="openers-count" id="openers-count">…</span>
+                <span class="openers-hint">tap pill to switch tag · tap clip to fire</span>
+            </summary>
+            <!-- Tag filter pills. Tap to switch which tag's clips
+                 are shown. Backend `clips/by_tag` handles each tag;
+                 same panel, multiple lenses. -->
+            <div class="openers-pills" id="openers-pills">
+                <button type="button" class="op-pill active"
+                        data-tag="opener">opener</button>
+                <button type="button" class="op-pill"
+                        data-tag="starred-opener">★ starred</button>
+                <button type="button" class="op-pill"
+                        data-tag="dialog">dialog</button>
+                <button type="button" class="op-pill"
+                        data-tag="bg-friendly">bg-friendly</button>
+                <button type="button" class="op-pill"
+                        data-tag="transition-rich">transition-rich</button>
+                <button type="button" class="op-pill"
+                        data-tag="title">title</button>
+                <button type="button" class="op-pill"
+                        data-tag="dialog-no-music">dialog-no-music</button>
+            </div>
+            <div class="openers-list" id="openers-list">
+                <div class="openers-empty">loading…</div>
+            </div>
+        </details>
+    </section>
+
+    <main>
+
+        <!-- LAYOUT NOTE (2026-05-19 / restructured 2026-05-20): the page
+             is two zones. PERFORM (here down): MK2 mirror → Library →
+             Semantic Search → Preview → Decks → Cue Points → Shortlist.
+             TOOLS & REVIEW (below its divider): picker/votes/magic/
+             mark-clip (flattened out of the old nested "CLIPS" drawer)
+             → Channels → Scenes → Analytics. -->
+        <div class="zone-divider zone-divider-perform">PERFORM</div>
+
+        <!-- MODE DASHBOARD — every operator-facing mode in one glance
+             so you never have to ask "what mode am I in". Read-only;
+             populated from state.modes each /api/state poll. (2026-05-20) -->
+        <section class="panel" id="mode-dashboard-panel">
+            <div class="mode-dash" id="mode-dash">
+                <span class="mode-dash-empty">modes loading…</span>
+            </div>
+        </section>
+
+        <!-- Scratch list + MK2 bank mirror: session basket of library
+             files PLUS the always-visible MK2 hardware mirror (bank
+             letters A-H + verticals + pads). Tap a chip to fire that
+             file to LIVE; × removes one; Clear empties the basket.
+             Tap a bank letter in the mirror to peek (without loading);
+             tap LOAD to switch active bank. -->
+        <section class="panel" id="scratch-panel">
+            <div class="scratch-header">
+                <h2>MK2 Bank Mirror &amp; Scratch</h2>
+                <details class="scratch-tools-details">
+                    <summary class="scratch-tools-summary">edit &middot;</summary>
+                    <div class="scratch-toolbar">
+                        <button type="button" id="scratch-add-current" class="scratch-btn"
+                                title="Add current LIVE file to scratch">+ Current</button>
+                        <button type="button" id="scratch-shuffle" class="scratch-btn"
+                                title="Randomize scratch order (re-maps MK2 pads)">Shuffle</button>
+                        <button type="button" id="scratch-save-set" class="scratch-btn"
+                                title="Save the current scratch list as a named set">Save set</button>
+                        <button type="button" id="scratch-clear" class="scratch-btn scratch-clear-btn"
+                                title="Clear scratch list">Clear</button>
+                    </div>
+                </details>
+            </div>
+            <div id="banks-row" style="display:none"></div>
+            <!-- Bank view (always visible, full-width) — MK2 hardware
+                 mirror. Auto-shows the ACTIVE bank on load; tap a bank
+                 letter to peek a different one without committing. -->
+            <div class="bank-preview" id="bank-preview">
+                <div class="bp-header">
+                    <span class="bp-letter" id="bp-letter">?</span>
+                    <span class="bp-name" id="bp-name">(loading...)</span>
+                    <span class="bp-count" id="bp-count"></span>
+                    <!-- Layer overlay chip (2026-05-18). Tap to cycle
+                         active categorization layer (default / positions
+                         / pov / mood / user-defined). Mirrors MK2 STEP
+                         button (bit 9). Takes effect on next bank
+                         rebuild. -->
+                    <button type="button" class="bp-layer" id="bp-layer"
+                            title="Bank LAYER (categorization map). Tap to cycle. Takes effect on next bank rebuild.">L:default</button>
+                    <button type="button" class="bp-reroll" id="bp-reroll"
+                            title="Reroll JUST this bank's contents (16 new clips)">↻</button>
+                    <button type="button" class="bp-load" id="bp-load"
+                            title="Switch active bank to this one">Load</button>
+                </div>
+                <div class="bp-mirror">
+                    <!-- LEFT: bank letters A-H, 2 cols × 4 rows -->
+                    <div class="bp-groups" id="bp-groups"></div>
+                    <!-- MIDDLE: verticals 0-7, single column -->
+                    <div class="bp-verts" id="bp-verts"></div>
+                    <!-- RIGHT: pads 4×4 thumb grid -->
+                    <div class="bp-pads" id="bp-pads"></div>
+                </div>
+            </div>
+            <ul id="scratch-list" class="scratch-list">
+                <li class="empty">Nothing in scratch yet</li>
+            </ul>
+            <!-- Saved sets: named snapshots of the scratch list. -->
+            <div class="scratch-sets" id="scratch-sets-row"></div>
+        </section>
+
+        <!-- Library browser — PROMOTED TO TOP 2026-05-19 per user req
+             ("library should be most prominent"). Now lives directly
+             below the MK2 mirror for fastest reach. -->
+        <section class="panel" id="library-panel">
+            <div class="library-header">
+                <h2>Library</h2>
+                <div class="library-breadcrumb" id="library-breadcrumb"></div>
+                <div class="library-shortcuts">
+                    <button type="button" id="library-working-set" class="library-shortcut-btn"
+                            title="Jump library to the working-set folder">Working Set</button>
+                    <button type="button" id="library-default-root" class="library-shortcut-btn library-shortcut-back hidden"
+                            title="Restore the previous library root">← Library</button>
+                </div>
+            </div>
+            <div class="library-search">
+                <input type="search" id="library-search-input"
+                       placeholder="Search library…"
+                       autocomplete="off" autocorrect="off"
+                       autocapitalize="off" spellcheck="false">
+                <button type="button" id="library-search-clear"
+                        class="library-search-clear hidden"
+                        title="Clear search">&times;</button>
+            </div>
+            <div class="smart-playlists-row" id="smart-playlists-row">
+                <button type="button" id="smart-playlist-save"
+                        class="smart-pl-save-btn"
+                        title="Save current folder + tag filter as a named playlist">+ Save playlist</button>
+            </div>
+            <div class="path-tags-bar" id="path-tags-bar"></div>
+            <div class="tag-search-results-inline" id="tag-search-results"></div>
+            <div class="library-list" id="library-list">
+                <div class="library-empty">Scanning…</div>
+            </div>
+        </section>
+
+        <!-- THEMES — curated `theme:` tag layer (theme_apply.py).
+             Tap a chip to load that vibe's clips into banks A-H.
+             Tag-driven, so branded vibes ("horror") work where CLIP
+             visual search can't. (2026-05-20) -->
+        <section class="panel" id="theme-panel">
+            <div class="clip-search-top-header">
+                <h2>🎭 Themes</h2>
+                <span class="clip-search-top-hint">tap a vibe — loads that theme's clips into banks A-H</span>
+            </div>
+            <div class="theme-chips" id="theme-chips"></div>
+        </section>
+
+        <!-- CLIP semantic search — promoted to its own top-level panel
+             (2026-05-19) since it's a brand-new discovery capability
+             that was hidden inside the openers nest before. Natural-
+             language query over the library's visual embeddings. -->
+        <section class="panel" id="clip-search-panel-top">
+            <div class="clip-search-top-header">
+                <h2>🔍 Semantic Search</h2>
+                <span class="clip-search-top-hint">type a query, tap a result to fire — first query warms model ~5s, rest are instant</span>
+            </div>
+            <div class="clip-search-form">
+                <input type="text" id="clip-search-input"
+                       class="clip-search-input"
+                       placeholder="e.g. girl twerking outdoors, intense closeup, dance party with neon lights"
+                       autocomplete="off" spellcheck="false">
+                <button type="button" id="clip-search-btn"
+                        class="clip-search-btn">SEARCH</button>
+                <button type="button" id="clip-to-banks-btn"
+                        class="clip-search-btn clip-to-banks-btn"
+                        title="Take the search query and auto-route the top 64 visual matches into banks A-H">→BANKS</button>
+                <button type="button" id="clip-save-btn"
+                        class="clip-search-btn clip-save-btn"
+                        title="Save current query as a recall chip">⭐ SAVE</button>
+            </div>
+            <!-- Saved-vibe chips: tap to re-fire that query to banks.
+                 Populated from ~/.setpiece/saved_searches.json
+                 (most-recent first, max 6). Long-press = delete. -->
+            <div class="saved-vibes" id="saved-vibes"></div>
+            <div class="clip-search-meta" id="clip-search-meta"></div>
+            <div class="clip-search-results" id="clip-search-results">
+                <div class="clip-search-empty">type a natural-language query above and tap SEARCH — finds clips by visual meaning, not tag string-match</div>
+            </div>
+        </section>
+
+        <!-- Preview ("Next Up"): live MJPEG stream of whichever deck the
+             crossfader is staged on (preview_deck_idx — set via the FX2
+             cluster on the S2, or the Decks panel). Lets you SEE what
+             you're about to bring in before you fade to it. Fills the
+             dead space beside the S2 panel. -->
+        <section class="panel" id="monitor-panel">
+            <div class="monitor-header">
+                <h2>Preview</h2>
+                <span class="monitor-hint" id="preview-deck-label">no deck staged</span>
+            </div>
+            <div class="monitor-frame" id="monitor-frame">
+                <img id="preview-monitor" class="hidden" alt="preview deck" />
+                <div id="monitor-offline" class="monitor-offline">no preview staged</div>
+            </div>
+            <div class="monitor-name" id="preview-name"></div>
+        </section>
+
+        <!-- Crossfade panel (text-only): live/preview filenames + status
+             badge. The animated bar was deleted — the S2 fader IS the bar
+             (hand is on it). Names tell you what's staged + status badge
+             (A LIVE / BLEND / B LIVE) reads at a glance. -->
+        <section class="panel panel-collapsible" id="crossfade-panel">
+            <details>
+                <summary class="xfade-header panel-summary">
+                    <h2>Crossfade</h2>
+                    <span id="crossfade-status" class="xfade-status">A LIVE</span>
+                </summary>
+                <div class="xfade-decks">
+                    <div class="xfade-side xfade-live-side">
+                        <span class="xfade-label">LIVE</span>
+                        <span id="xfade-live-name" class="xfade-name">No video</span>
+                    </div>
+                    <div class="xfade-side xfade-preview-side">
+                        <span class="xfade-label">PREVIEW DECK <span id="xfade-deck-num">1</span></span>
+                        <span id="xfade-preview-name" class="xfade-name xfade-empty">No preview staged</span>
+                    </div>
+                </div>
+            </details>
+        </section>
+
+        <!-- Decks (launchpad) panel — 4 preview slots -->
+        <section class="panel" id="decks-panel">
+            <div class="decks-header">
+                <h2>Decks</h2>
+                <div class="decks-hint" id="decks-hint">Tap a slot, then tap a clip</div>
+                <button type="button" id="decks-clear-all" class="decks-clear-all-btn"
+                        title="Empty every deck slot">Clear all</button>
+            </div>
+            <!-- Proxy status: shows queue depth + in-flight transcode +
+                 controls to pause/resume/cancel. Lets you tame the GPU
+                 when a stack of new working-set files is grinding. -->
+            <div class="proxy-status" id="proxy-status">
+                <span class="ps-text" id="ps-text">Proxies: idle</span>
+                <button type="button" id="ps-pause" class="ps-btn">Pause</button>
+                <button type="button" id="ps-cancel-current" class="ps-btn ps-warn"
+                        title="Kill the in-flight transcode">Skip</button>
+                <button type="button" id="ps-cancel-pending" class="ps-btn ps-warn"
+                        title="Drop the queue (in-flight keeps going)">Drop queue</button>
+            </div>
+            <div class="deck-grid" id="deck-grid">
+                <!-- The <img class="deck-stream"> elements get their
+                     src filled in by renderDecks() once a deck is
+                     loaded. Empty slots show the .deck-placeholder
+                     diagonal hatch + the "Drop a clip here" hint. -->
+                <div class="deck-slot empty" data-slot="0">
+                    <div class="deck-placeholder"></div>
+                    <div class="deck-badge">1</div>
+                    <div class="deck-name">Drop a clip here</div>
+                </div>
+                <div class="deck-slot empty" data-slot="1">
+                    <div class="deck-placeholder"></div>
+                    <div class="deck-badge">2</div>
+                    <div class="deck-name">Drop a clip here</div>
+                </div>
+                <div class="deck-slot empty" data-slot="2">
+                    <div class="deck-placeholder"></div>
+                    <div class="deck-badge">3</div>
+                    <div class="deck-name">Drop a clip here</div>
+                </div>
+                <div class="deck-slot empty" data-slot="3">
+                    <div class="deck-placeholder"></div>
+                    <div class="deck-badge">4</div>
+                    <div class="deck-name">Drop a clip here</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Saved clips panel (filtered to current video — "deck per video") -->
+        <section class="panel" id="clips-panel">
+            <div class="clips-header">
+                <h2>Cue Points (this video)</h2>
+                <div class="clips-toolbar">
+                    <select id="clips-sort" class="clips-sort"
+                            title="Sort cue points">
+                        <option value="added">Just Added</option>
+                        <option value="recent">Recently Played</option>
+                        <option value="most">Most Played</option>
+                        <option value="bpm">BPM</option>
+                    </select>
+                    <button class="clips-clear-all" id="clips-clear-all">Clear All</button>
+                </div>
+            </div>
+            <!-- Filter bar: All / Starred / one chip per existing tag.
+                 Tap a chip to filter; tap again to clear. Active chip glows. -->
+            <div class="clips-filter-bar" id="clips-filter-bar">
+                <button class="filter-chip filter-all active" data-filter="all">All</button>
+                <button class="filter-chip filter-star" data-filter="star">&#9733;</button>
+                <!-- BPM range chip + per-tag chips injected dynamically -->
+            </div>
+            <!-- BPM band picker — only visible when the BPM chip is open.
+                 Each option is one of: 60-90, 90-110, 110-130, 130-150, 150+.
+                 Tapping an option sets activeFilter='bpm:<lo>-<hi>' and
+                 closes the picker. Tapping the active band clears it. -->
+            <div class="bpm-band-picker hidden" id="bpm-band-picker">
+                <button class="bpm-band-opt" data-band="60-90">60-90</button>
+                <button class="bpm-band-opt" data-band="90-110">90-110</button>
+                <button class="bpm-band-opt" data-band="110-130">110-130</button>
+                <button class="bpm-band-opt" data-band="130-150">130-150</button>
+                <button class="bpm-band-opt" data-band="150-999">150+</button>
+            </div>
+            <!-- Datalist drives the tag input's autocomplete; populated
+                 from state.all_tags every poll. Lets the user type a new
+                 tag OR pick an existing one with one tap. -->
+            <datalist id="all-tags-datalist"></datalist>
+            <ul id="clips-list">
+                <li class="empty">No cue points on this video</li>
+            </ul>
+        </section>
+
+        <!-- Clip Bank: cross-video shortlist of starred + recent clips.
+             Sits in the right-column slot next to Cue Points so it fills
+             the previously empty space without disturbing other panels.
+             Tap any chip to fire that clip (loads its source video if
+             different from LIVE, then seeks to IN and engages the loop). -->
+        <section class="panel" id="bank-panel">
+            <div class="bank-header">
+                <h2>Shortlist</h2>
+                <span class="bank-hint">starred &amp; recent clips · tap to fire</span>
+            </div>
+            <!-- Sticky active tag — auto-applied to every Mark OUT and
+                 SHIFT+Loop Out. Type+Enter to set, X chip to clear. -->
+            <div class="active-tag-row">
+                <span class="active-tag-label">Auto-tag:</span>
+                <input id="active-tag-input" type="text" class="active-tag-input"
+                       placeholder="(none)" list="all-tags-datalist"
+                       autocomplete="off" />
+                <button id="active-tag-clear" class="active-tag-clear" type="button"
+                        title="Clear active tag">&times;</button>
+            </div>
+            <ul id="bank-list" class="bank-list">
+                <li class="empty">No clips saved yet</li>
+            </ul>
+        </section>
+
+        <!-- ============ TOOLS & REVIEW ZONE (2026-05-20) ============
+             Everything below the divider is review/debug, not live
+             performance. The picker / votes / magic / mark-clip panels
+             were pulled OUT of the old two-level-deep "CLIPS" junk
+             drawer — each is now its own top-level collapsible. -->
+        <div class="zone-divider">TOOLS &amp; REVIEW</div>
+
+        <!-- Picker decisions: last 10 picks + what drove each one
+             (random / bpm-match / match-cut / stem-restrict). Includes
+             the cohesion anchor view. Debug/visibility surface. -->
+        <section class="panel" id="picker-panel-section">
+            <details class="picker-panel">
+                <summary class="picker-summary">
+                    <span class="picker-title">▶ PICKER DECISIONS</span>
+                    <span class="picker-hint">tap to see last 10 picks</span>
+                </summary>
+                <!-- Cohesion anchor view: the current "music-video
+                     shoot" subset + countdown to next re-roll. ↻ forces
+                     a new anchor now. -->
+                <div class="cohesion-strip" id="cohesion-strip">
+                    <div class="cohesion-head">
+                        <span class="cohesion-title">🎬 anchor</span>
+                        <span class="cohesion-timer" id="cohesion-timer">—</span>
+                        <button type="button" id="cohesion-refresh"
+                                class="cohesion-refresh"
+                                title="Force re-roll the anchor subset now">↻</button>
+                    </div>
+                    <div class="cohesion-files" id="cohesion-files">
+                        <span class="cohesion-empty">cohesion off OR waiting for first pick</span>
+                    </div>
+                </div>
+                <div class="picker-list" id="picker-list">
+                    <div class="picker-empty">tap to load…</div>
+                </div>
+            </details>
+        </section>
+
+        <!-- Votes & corrections: what the hardware vote system has
+             learned. Current clip score + top/bottom lists. -->
+        <section class="panel" id="votes-panel-section">
+            <details class="votes-panel">
+                <summary class="votes-summary">
+                    <span class="votes-title">♡ VOTES &amp; CORRECTIONS</span>
+                    <span class="votes-hint">tap to see what the system has learned</span>
+                </summary>
+                <div class="votes-current" id="votes-current">
+                    <div class="votes-empty">tap to load…</div>
+                </div>
+                <div class="votes-cols">
+                    <div class="votes-col">
+                        <div class="votes-col-h">TOP ↑</div>
+                        <div class="votes-list" id="votes-top">
+                            <div class="votes-empty">—</div>
+                        </div>
+                    </div>
+                    <div class="votes-col">
+                        <div class="votes-col-h">BOTTOM ↓</div>
+                        <div class="votes-list" id="votes-bottom">
+                            <div class="votes-empty">—</div>
+                        </div>
+                    </div>
+                </div>
+            </details>
+        </section>
+
+        <!-- Magic Mix: top-N "what to play next" suggestions. -->
+        <section class="panel" id="magic-panel-section">
+            <details class="magic-mix-panel">
+                <summary class="magic-summary">
+                    <span class="magic-title">★ MAGIC MIX</span>
+                    <span class="magic-hint">what to play next from current bank</span>
+                </summary>
+                <div class="magic-list" id="magic-list">
+                    <div class="magic-empty">tap to load…</div>
+                </div>
+                <button type="button" id="magic-refresh"
+                        class="magic-refresh">refresh suggestions</button>
+            </details>
+        </section>
+
+        <!-- Mark new clip: explicit IN/OUT + tags. Resolves a filename
+             fragment via path_tags (full path not needed). -->
+        <section class="panel" id="mark-clip-section">
+            <details class="mark-clip-form">
+                <summary class="mark-clip-summary">+ MARK NEW CLIP</summary>
+                <div class="mark-clip-fields">
+                    <input type="text" id="mc-file" class="mc-input"
+                           placeholder="file (fragment OK, e.g. 24.06.03.Willow)"
+                           autocomplete="off" spellcheck="false">
+                    <div class="mc-row">
+                        <input type="number" id="mc-in" class="mc-input mc-num"
+                               placeholder="IN seconds" min="0" step="1">
+                        <input type="number" id="mc-out" class="mc-input mc-num"
+                               placeholder="OUT seconds" min="1" step="1">
+                    </div>
+                    <input type="text" id="mc-name" class="mc-input"
+                           placeholder="clip name (optional)"
+                           autocomplete="off">
+                    <input type="text" id="mc-tags" class="mc-input"
+                           placeholder="tags comma-separated (default: opener,transition-rich)"
+                           autocomplete="off">
+                    <div class="mc-row">
+                        <label class="mc-star">
+                            <input type="checkbox" id="mc-starred">
+                            star (highly-used)
+                        </label>
+                        <button type="button" id="mc-submit"
+                                class="mc-submit">CREATE CLIP</button>
+                    </div>
+                    <div class="mc-result" id="mc-result"></div>
+                </div>
+            </details>
+        </section>
+
+        <!-- Channels (saved library-folder presets, bound to S2 FX channel
+             buttons fx1_ch1/fx2_ch1/fx1_ch2/fx2_ch2). Tap a chip to switch
+             the library browser; tap the gear to open the inline editor. -->
+        <section class="panel panel-collapsible" id="channels-panel">
+            <details>
+                <summary class="channels-header panel-summary">
+                    <h2>Channels</h2>
+                    <div class="channels-hint">Tap to switch &middot; gear to edit</div>
+                </summary>
+            <div class="channels-row" id="channels-row">
+                <!-- Filled by renderChannels() -->
+            </div>
+            <div class="channel-editor hidden" id="channel-editor">
+                <div class="ce-header">
+                    <span class="ce-title">Edit Channel <span id="ce-num">?</span></span>
+                    <button class="ce-close" id="ce-close" type="button">&times;</button>
+                </div>
+                <label class="ce-field">
+                    <span class="ce-label">Name</span>
+                    <input type="text" id="ce-name" maxlength="40"
+                           autocomplete="off" autocorrect="off"
+                           autocapitalize="off" spellcheck="false">
+                </label>
+                <label class="ce-field">
+                    <span class="ce-label">Folder</span>
+                    <input type="text" id="ce-folder"
+                           autocomplete="off" autocorrect="off"
+                           autocapitalize="off" spellcheck="false">
+                </label>
+                <button type="button" class="ce-btn ce-use-current" id="ce-use-current">
+                    Use current library folder
+                </button>
+                <label class="ce-field">
+                    <span class="ce-label">Tag filter (optional)</span>
+                    <input type="text" id="ce-tag" maxlength="40"
+                           autocomplete="off" autocorrect="off"
+                           autocapitalize="off" spellcheck="false">
+                </label>
+                <label class="ce-field">
+                    <span class="ce-label">Color</span>
+                    <div class="ce-swatches" id="ce-swatches">
+                        <!-- Filled at first render -->
+                    </div>
+                </label>
+                <div class="ce-actions">
+                    <button type="button" class="ce-btn ce-cancel" id="ce-cancel">Cancel</button>
+                    <button type="button" class="ce-btn ce-save" id="ce-save">Save</button>
+                </div>
+            </div>
+            </details>
+        </section>
+
+        <!-- Scenes: snapshot/restore the 4-deck layout under a name. -->
+        <section class="panel panel-collapsible" id="scenes-panel">
+            <details>
+                <summary class="scenes-header panel-summary">
+                    <h2>Scenes</h2>
+                </summary>
+                <div class="scenes-toolbar">
+                    <input type="text" id="scene-name-input" class="scene-name-input"
+                           placeholder="Scene name (optional)" maxlength="40">
+                    <button type="button" id="scene-save-btn" class="scene-save-btn">Save current</button>
+                </div>
+                <ul id="scenes-list" class="scenes-list">
+                    <li class="empty">No scenes saved yet</li>
+                </ul>
+            </details>
+        </section>
+
+        <!-- Analytics panel: read-only stats from analytics.py.
+             Wrapped in <details> so it's collapsed by default — the iPad
+             page is for live perf, analytics is review-mode. Tap the
+             summary to expand. (audit 2026-05-16) -->
+        <section class="panel" id="analytics-panel">
+            <details id="analytics-details">
+            <summary class="analytics-header">
+                <h2>Analytics</h2>
+                <button type="button" id="analytics-refresh"
+                        class="analytics-refresh-btn"
+                        title="Force a re-render from the last polled state">Refresh</button>
+            </summary>
+            <div class="analytics-block" id="analytics-today">
+                <div class="analytics-block-title">Today</div>
+                <div class="analytics-today-row">
+                    <div class="analytics-counter">
+                        <span class="analytics-counter-val" id="an-fires">--</span>
+                        <span class="analytics-counter-label">fires</span>
+                    </div>
+                    <div class="analytics-counter">
+                        <span class="analytics-counter-val" id="an-beats">--</span>
+                        <span class="analytics-counter-label">beats</span>
+                    </div>
+                    <div class="analytics-counter">
+                        <span class="analytics-counter-val" id="an-flips">--</span>
+                        <span class="analytics-counter-label">flips</span>
+                    </div>
+                    <div class="analytics-counter">
+                        <span class="analytics-counter-val" id="an-alltime">--</span>
+                        <span class="analytics-counter-label">total clips</span>
+                    </div>
+                </div>
+            </div>
+            <div class="analytics-block" id="analytics-top">
+                <div class="analytics-block-title">Top 10 fired</div>
+                <ol class="analytics-top-list" id="analytics-top-list">
+                    <li class="analytics-empty">Analytics loading...</li>
+                </ol>
+            </div>
+            <div class="analytics-block" id="analytics-bpm">
+                <div class="analytics-block-title">BPM histogram</div>
+                <div class="analytics-bars" id="analytics-bpm-bars">
+                    <div class="analytics-empty">Analytics loading...</div>
+                </div>
+            </div>
+            <div class="analytics-block" id="analytics-disk">
+                <div class="analytics-block-title">Disk usage</div>
+                <div class="analytics-disk-line" id="analytics-disk-line">Analytics loading...</div>
+            </div>
+            </details>
+        </section>
+    </main>
+
+    <script src="/control.js"></script>
+    <script src="/magic.js"></script>
+</body>
+</html>

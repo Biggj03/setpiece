@@ -1,0 +1,119 @@
+/* ── Magic Mix panel ──────────────────────────────────────────────────
+   Self-contained styles for the magic-mix recommender panel injected by
+   magic.js. Matches the dark VJ control surface: #1a1a1a panels, #00ff88
+   accents, ~11-12px fonts. Loaded via a programmatic <link> so this file
+   never needs a touch in control.html. */
+
+#magic-panel {
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 16px;
+}
+
+#magic-panel .magic-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+#magic-panel .magic-header h2 {
+    font-size: 14px;
+    color: #00ff88;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.magic-refresh-btn {
+    background: #232323;
+    color: #ddd;
+    border: 1px solid #333;
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 11px;
+    cursor: pointer;
+    transition: background 80ms ease, border-color 80ms ease;
+}
+.magic-refresh-btn:hover { background: #2a2a2a; border-color: #555; }
+.magic-refresh-btn:active { background: #00ff88; color: #000; }
+.magic-refresh-btn.busy { color: #ffcc00; border-color: #ffcc00; }
+
+#magic-panel .magic-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+#magic-panel .magic-list .empty,
+#magic-panel .magic-list .magic-unavailable {
+    color: #888;
+    font-size: 11px;
+    padding: 8px 4px;
+}
+#magic-panel .magic-list .magic-unavailable { color: #ff9933; }
+
+/* One suggestion row: name + score bar + reasons. Tap fires to LIVE. */
+.magic-suggestion {
+    background: #232323;
+    border: 1px solid #333;
+    border-radius: 6px;
+    padding: 8px 10px;
+    cursor: pointer;
+    transition: background 80ms ease, border-color 80ms ease;
+}
+.magic-suggestion:hover { background: #2a2a2a; border-color: #555; }
+.magic-suggestion:active { background: #00ff88; }
+.magic-suggestion:active .magic-name,
+.magic-suggestion:active .magic-reasons,
+.magic-suggestion:active .magic-score-pct { color: #000; }
+
+.magic-suggestion .magic-row-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+}
+
+.magic-name {
+    color: #e0e0e0;
+    font-size: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1 1 auto;
+}
+
+.magic-score-pct {
+    color: #00ff88;
+    font-size: 11px;
+    flex: 0 0 auto;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Horizontal score bar: track + green-gradient fill (0..1 -> 0..100%). */
+.magic-score-bar {
+    margin: 5px 0 4px 0;
+    height: 6px;
+    background: #111;
+    border: 1px solid #2a2a2a;
+    border-radius: 3px;
+    overflow: hidden;
+}
+.magic-score-bar .magic-score-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #00663c, #00ff88);
+    border-radius: 3px 0 0 3px;
+    transition: width 200ms ease;
+}
+
+.magic-reasons {
+    color: #888;
+    font-size: 10px;
+    line-height: 1.4;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}

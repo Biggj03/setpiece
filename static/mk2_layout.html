@@ -1,0 +1,469 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MK2 Layout — NI-faithful VJ remap</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:        #0f172a;
+  --chassis:   #1a1a1a;
+  --bound:     #22c55e;
+  --bound-bg:  rgba(34,197,94,0.18);
+  --unbound:   #555;
+  --unbound-bg:rgba(85,85,85,0.18);
+  --proposed:  #06b6d4;
+  --proposed-bg:rgba(6,182,212,0.18);
+  --unknown:   #eab308;
+  --unknown-bg:rgba(234,179,8,0.18);
+  --master:    #a855f7;
+  --master-bg: rgba(168,85,247,0.18);
+  --oled:      #0a1c3a;
+  --oled-text: #58bff7;
+  --accent:    #ef4444;
+  --txt:       #fff;
+  --txt-dim:   #999;
+  --txt-dimmer:#555;
+  --font:'Barlow Condensed','Oswald',sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--txt);
+  font-family: var(--font);
+  padding: 24px;
+  min-height: 100vh;
+}
+h1 { font-weight: 900; font-size: 28px; letter-spacing: 0.04em; margin-bottom: 4px; }
+h1 small { font-weight: 400; color: var(--txt-dim); font-size: 18px; }
+.subtitle { color: var(--txt-dim); margin-bottom: 24px; font-size: 14px; }
+.subtitle b { color: var(--accent); }
+
+.explain {
+  background: rgba(255,255,255,0.04);
+  border-left: 3px solid var(--accent);
+  border-radius: 4px;
+  padding: 14px 18px;
+  margin-bottom: 24px;
+  max-width: 1280px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #ddd;
+}
+.explain b { color: var(--accent); }
+.explain code {
+  background: rgba(0,0,0,0.4); padding: 1px 6px; border-radius: 3px;
+  font-family: monospace; color: var(--bound); font-size: 12px;
+}
+
+.mk2 {
+  background: var(--chassis);
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  max-width: 1280px;
+  display: grid;
+  grid-template-columns: 110px 1fr 110px;
+  grid-template-rows: auto auto auto auto auto;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+/* generic button */
+.btn {
+  background: var(--unbound-bg);
+  border: 1px dashed var(--unbound);
+  border-radius: 5px;
+  padding: 6px 4px;
+  text-align: center;
+  display: flex; flex-direction: column; justify-content: center; align-items: center;
+  font-size: 10px; min-height: 44px;
+  transition: all 120ms ease;
+}
+.btn .lbl { font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+            color: var(--txt-dim); font-size: 10px; line-height: 1.1; }
+.btn .note { font-size: 9px; color: var(--txt-dimmer); margin-top: 2px;
+             font-style: italic; }
+.btn .bit { font-size: 8px; color: var(--txt-dimmer); letter-spacing: 0.05em; }
+
+.btn.bound { background: var(--bound-bg); border-color: var(--bound); border-style: solid; }
+.btn.bound .lbl { color: var(--bound); }
+.btn.bound .note { color: rgba(34,197,94,0.65); }
+
+.btn.proposed { background: var(--proposed-bg); border-color: var(--proposed); border-style: solid; }
+.btn.proposed .lbl { color: var(--proposed); }
+.btn.proposed .note { color: rgba(6,182,212,0.7); }
+
+.btn.master { background: var(--master-bg); border-color: var(--master); border-style: solid; }
+.btn.master .lbl { color: var(--master); }
+.btn.master .note { color: rgba(168,85,247,0.7); }
+
+.btn.unknown { background: var(--unknown-bg); border-color: var(--unknown); border-style: dashed; }
+.btn.unknown .lbl { color: var(--unknown); }
+.btn.unknown .note { color: rgba(234,179,8,0.7); }
+
+/* page-selector top row (clickable) */
+.btn.page { cursor: pointer; border-style: solid; border-color: var(--proposed); background: var(--proposed-bg); }
+.btn.page:hover { border-color: #fff; }
+.btn.page.active {
+  background: rgba(34,197,94,0.35);
+  border-color: var(--bound);
+  box-shadow: 0 0 12px rgba(34,197,94,0.5);
+}
+.btn.page.active .lbl { color: var(--bound); }
+
+/* columns + rows */
+.col {
+  display: flex; flex-direction: column; gap: 5px;
+}
+.row {
+  display: grid; gap: 5px;
+}
+.row.r8 { grid-template-columns: repeat(8, 1fr); }
+.row.r7 { grid-template-columns: repeat(7, 1fr); }
+.row.r6 { grid-template-columns: repeat(6, 1fr); }
+
+/* OLED panels */
+.oled-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.oled {
+  background: var(--oled); border: 1px solid #0a3060; border-radius: 4px;
+  padding: 10px 12px; color: var(--oled-text);
+  font-family: 'Barlow Condensed', monospace;
+  min-height: 110px; position: relative;
+}
+.oled-tag {
+  position: absolute; top: 4px; right: 8px;
+  font-size: 9px; letter-spacing: 0.15em; color: #1f6db8; text-transform: uppercase;
+}
+.oled-line { font-size: 13px; line-height: 1.35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.oled-line.big { font-size: 18px; font-weight: 900; }
+.oled-line.dim { color: #1f6db8; }
+.oled-line.accent { color: #ffb84d; }
+.oled-line.tiny { font-size: 11px; }
+
+/* big group letter overlay on left OLED */
+.oled-group {
+  position: absolute; top: 10px; right: 14px;
+  font-size: 64px; font-weight: 900; line-height: 0.9;
+  color: rgba(255,184,77,0.85);
+  letter-spacing: -0.02em;
+}
+.oled-divider { border-top: 1px dashed #1f6db8; margin: 6px 0 4px; }
+
+/* pad grid */
+.pads {
+  display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(4, 1fr);
+  gap: 5px;
+  aspect-ratio: 1 / 1; max-width: 380px; margin: 0 auto;
+}
+.pad {
+  background: #2a3548; border-radius: 5px; aspect-ratio: 1 / 1;
+  color: #6b7a96; font-size: 12px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  position: relative;
+}
+.pad::after {
+  content: attr(data-num); position: absolute; top: 3px; left: 4px;
+  font-size: 9px; color: #4a5568;
+}
+
+/* verticals (the right-side column we use for folder firing) */
+.verticals {
+  display: grid; grid-template-rows: repeat(8, 1fr); gap: 5px;
+  min-height: 380px;
+}
+.vert {
+  background: var(--bound-bg); border: 1px solid var(--bound);
+  border-radius: 5px; padding: 4px 4px;
+  font-weight: 700; color: var(--bound); text-align: center;
+  display: flex; flex-direction: column; justify-content: center; align-items: center;
+  text-transform: uppercase; letter-spacing: 0.02em;
+  font-size: 11px; word-break: break-word; line-height: 1.1;
+  transition: all 200ms ease;
+}
+.vert .bit { font-size: 8px; color: #15803d; }
+.vert.reroll { background: var(--unknown-bg); border-color: var(--unknown); color: var(--unknown); }
+.vert.reroll .bit { color: #854d0e; }
+
+/* zone label headers */
+.zone-label {
+  font-size: 10px; font-weight: 700; color: var(--txt-dimmer);
+  letter-spacing: 0.18em; text-transform: uppercase;
+  margin-bottom: 5px;
+}
+
+/* layout grid placement */
+.zone-top-row     { grid-column: 2; grid-row: 1; }
+.zone-edit-col    { grid-column: 1; grid-row: 2 / 5; }
+.zone-oleds       { grid-column: 2; grid-row: 2; }
+.zone-master      { grid-column: 3; grid-row: 2 / 4; }
+.zone-mode-row    { grid-column: 2; grid-row: 3; }
+.zone-pads        { grid-column: 2; grid-row: 4; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.zone-transport   { grid-column: 3; grid-row: 4; }
+.zone-bottom-row  { grid-column: 1 / -1; grid-row: 5; }
+
+/* annotation under a zone */
+.intent {
+  font-size: 10px; line-height: 1.4; color: var(--txt-dim);
+  padding: 4px 6px; background: rgba(0,0,0,0.2); border-radius: 3px;
+  margin-top: 4px;
+}
+.intent b { color: var(--accent); }
+.intent .arrow { color: var(--bound); }
+
+/* legend */
+.legend {
+  display: flex; flex-wrap: wrap; gap: 16px; margin-top: 20px;
+  font-size: 12px; color: var(--txt-dim);
+}
+.legend-item { display: flex; align-items: center; gap: 6px; }
+.legend-swatch { display: inline-block; width: 14px; height: 14px; border-radius: 3px; border: 1px solid; }
+.legend-swatch.bound    { background: var(--bound-bg); border-color: var(--bound); }
+.legend-swatch.proposed { background: var(--proposed-bg); border-color: var(--proposed); }
+.legend-swatch.master   { background: var(--master-bg); border-color: var(--master); }
+.legend-swatch.unknown  { background: var(--unknown-bg); border-color: var(--unknown); border-style: dashed; }
+.legend-swatch.unbound  { background: var(--unbound-bg); border-color: var(--unbound); border-style: dashed; }
+</style>
+</head>
+<body>
+
+<h1>MK2 — NI-faithful VJ layout <small>v2 (manual-aligned, click pages)</small></h1>
+<p class="subtitle">All silkscreen labels per <b>NI Maschine MK2 Hardware Control Reference v1.8</b>. Each zone shows <i>NI intent</i> → <i>VJ remap</i>. Click any top-row PAGE button to preview the swap.</p>
+
+<div class="explain">
+  <b>Key finding:</b> NI explicitly left the 8 buttons above the OLEDs <b>unlabeled by design</b> — they're the only unlabeled elements on the device, intended to be repurposed per mode. Mapping them to <b>VJ page selectors</b> is the single most NI-faithful repurposing available. The rest of this layout keeps NI silkscreens as cues so muscle memory stays intact.
+</div>
+
+<div class="mk2">
+
+  <!-- ROW 1: Top buttons (page selectors) -->
+  <div class="zone-top-row">
+    <div class="zone-label">Top row — buttons 1-8 (NI: UNLABELED contextual / VJ: PAGE SELECTORS)</div>
+    <div class="row r8" id="page-row"><!-- JS fills --></div>
+    <div class="intent">
+      <b>NI intent:</b> Unlabeled, context-dependent (page tabs for the
+      current mode). &nbsp;<span class="arrow">→ VJ remap:</span> 8
+      pages × 7 verticals = 56 folder slots. Active page highlighted.
+    </div>
+  </div>
+
+  <!-- LEFT COLUMN: Edit / View buttons -->
+  <div class="zone-edit-col">
+    <div class="zone-label">Edit col (NI)</div>
+    <div class="col">
+      <div class="btn unknown"><div class="lbl">CONTROL</div><div class="note">NI: param pages<br>VJ: ?</div></div>
+      <div class="btn unknown"><div class="lbl">STEP</div><div class="note">NI: step seq<br>VJ: ?</div></div>
+      <div class="btn unknown"><div class="lbl">BROWSE</div><div class="note">NI: file browser<br>VJ: open library</div></div>
+      <div class="btn unknown"><div class="lbl">SAMPLING</div><div class="note">NI: rec/slice<br>VJ: ?</div></div>
+      <div class="btn unknown"><div class="lbl">ALL</div><div class="note">NI: show all<br>VJ: ?</div></div>
+      <div class="btn unknown"><div class="lbl">AUTO WRITE</div><div class="note">NI: rec automation<br>VJ: ?</div></div>
+    </div>
+    <div class="intent" style="margin-top:8px;font-size:9px;">
+      All 6 likely in <b>bits 8-17</b> — discovery pending. BROWSE → library nav is the obvious VJ remap.
+    </div>
+  </div>
+
+  <!-- ROW 2: OLEDs -->
+  <div class="zone-oleds">
+    <div class="zone-label">OLED screens (256×64 monochrome each)</div>
+    <div class="oled-pair">
+
+      <!-- LEFT OLED: your spec -->
+      <div class="oled">
+        <div class="oled-tag">L — playback</div>
+        <div class="oled-group">A</div>
+        <div class="oled-line big" style="padding-right:80px;">Sara Jay Smoking Lactating.mp4</div>
+        <div class="oled-line accent">128 BPM · 02:14 / 04:31</div>
+        <div class="oled-divider"></div>
+        <div class="oled-line tiny dim">PAGE 3 · TOP PERF A</div>
+        <div class="oled-line tiny">↑ last fired: Marilyn Mayson</div>
+      </div>
+
+      <!-- RIGHT OLED: page navigation -->
+      <div class="oled">
+        <div class="oled-tag">R — page</div>
+        <div style="display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:flex-start;">
+          <div style="font-size:42px;font-weight:900;color:#ffb84d;line-height:1;">3</div>
+          <div>
+            <div class="oled-line big" id="oled-pagename">TOP PERF A</div>
+            <div class="oled-line tiny" id="oled-vlist" style="margin-top:4px;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT COLUMN: Master / NAV section -->
+  <div class="zone-master">
+    <div class="zone-label">Master col (NI)</div>
+    <div class="col">
+      <div class="btn unknown"><div class="lbl">VOLUME</div></div>
+      <div class="btn unknown"><div class="lbl">SWING</div></div>
+      <div class="btn master"><div class="lbl">TEMPO</div><div class="note">tempo lock<br>bit 18</div></div>
+      <div class="btn master"><div class="lbl">«</div><div class="note">nudge down<br>bit 19</div></div>
+      <div class="btn master"><div class="lbl">»</div><div class="note">nudge up<br>bit 20</div></div>
+      <div class="btn master"><div class="lbl">MASTER ⊙</div><div class="note">BPM tol cyc<br>bit 23</div></div>
+      <div class="btn master"><div class="lbl">ENTER</div><div class="note">reseek clip<br>bit 21</div></div>
+      <div class="btn master"><div class="lbl">NOTE REP</div><div class="note">stutter<br>bit 22</div></div>
+    </div>
+  </div>
+
+  <!-- ROW 3: Mode buttons (between groups and pads) -->
+  <div class="zone-mode-row">
+    <div class="zone-label">Mode-button column (NI: SCENE/PATTERN/PAD MODE/NAVIGATE/DUPLICATE/SELECT/SOLO/MUTE) — most unbound</div>
+    <div class="row r8">
+      <div class="btn unknown"><div class="lbl">SCENE</div><div class="note">VJ: ?</div></div>
+      <div class="btn unknown"><div class="lbl">PATTERN</div><div class="note">VJ: ?</div></div>
+      <div class="btn unknown"><div class="lbl">PAD MODE</div><div class="note">VJ: ?</div></div>
+      <div class="btn unknown"><div class="lbl">NAVIGATE</div><div class="note">VJ: maybe drill page</div></div>
+      <div class="btn unknown"><div class="lbl">DUPLICATE</div><div class="note">VJ: clone clip?</div></div>
+      <div class="btn unknown"><div class="lbl">SELECT</div><div class="note">VJ: focus pad</div></div>
+      <div class="btn unknown"><div class="lbl">SOLO</div><div class="note">VJ: bank solo</div></div>
+      <div class="btn unknown"><div class="lbl">MUTE</div><div class="note">VJ: bank mute</div></div>
+    </div>
+  </div>
+
+  <!-- ROW 4: PADS + GROUPS -->
+  <div class="zone-pads">
+    <!-- Groups column + pads -->
+    <div>
+      <div class="zone-label">Groups A-H</div>
+      <div class="row r8">
+        <div class="btn bound"><div class="lbl">A</div><div class="bit">bit 24</div></div>
+        <div class="btn bound"><div class="lbl">B</div><div class="bit">bit 25</div></div>
+        <div class="btn bound"><div class="lbl">C</div><div class="bit">bit 26</div></div>
+        <div class="btn bound"><div class="lbl">D</div><div class="bit">bit 27</div></div>
+        <div class="btn bound"><div class="lbl">E</div><div class="bit">bit 28</div></div>
+        <div class="btn bound"><div class="lbl">F</div><div class="bit">bit 29</div></div>
+        <div class="btn bound"><div class="lbl">G</div><div class="bit">bit 30</div></div>
+        <div class="btn bound"><div class="lbl">H</div><div class="bit">bit 31</div></div>
+      </div>
+      <div class="intent" style="margin-top:8px;">
+        <b>NI intent:</b> select / mute / solo Groups. &nbsp;<span class="arrow">→ VJ remap:</span> load BANK A-H into pads. <i>Aligned — Groups = banks of scratch entries.</i>
+      </div>
+      <div class="zone-label" style="margin-top:14px;">16 Pads (4×4)</div>
+      <div class="pads" id="pads"><!-- JS --></div>
+      <div class="intent" style="margin-top:8px;">
+        <b>NI intent:</b> trigger sounds in current group; velocity-sensitive. &nbsp;<span class="arrow">→ VJ remap:</span> fire scratch clip N; velocity = body-seek depth. <i>Aligned.</i>
+      </div>
+    </div>
+
+    <!-- Vertical strip -->
+    <div>
+      <div class="zone-label">Verticals (right strip) — PAGE-DEPENDENT</div>
+      <div class="verticals" id="verticals"><!-- JS --></div>
+      <div class="intent" style="margin-top:8px;">
+        <b>NI intent:</b> column of mode/edit buttons. &nbsp;<span class="arrow">→ VJ remap:</span> 7 folder-fire slots, swap per page; vert 8 = REROLL always.
+      </div>
+    </div>
+  </div>
+
+  <!-- ROW 5: Transport (far-right column) -->
+  <div class="zone-transport">
+    <div class="zone-label">Transport col (NI labels)</div>
+    <div class="col">
+      <div class="btn bound"><div class="lbl">RESTART</div><div class="note">flip mode cyc<br>bit 32</div></div>
+      <div class="btn unknown"><div class="lbl">ERASE</div><div class="note">VJ: clear clip?</div></div>
+      <div class="btn unknown"><div class="lbl">TAP/METRO</div><div class="note">VJ: tap BPM?</div></div>
+      <div class="btn unknown"><div class="lbl">REC</div><div class="note">VJ: record session?</div></div>
+      <div class="btn bound"><div class="lbl">PLAY</div><div class="bit">bit 36</div></div>
+      <div class="btn bound"><div class="lbl">STOP</div><div class="bit">bit 37</div></div>
+      <div class="btn bound"><div class="lbl">GRID</div><div class="note">hold clip<br>bit 35</div></div>
+    </div>
+  </div>
+
+  <!-- ROW 6: SHIFT + NOTE REPEAT (bottom-left) -->
+  <div class="zone-bottom-row">
+    <div class="zone-label">Bottom modifiers</div>
+    <div class="row" style="grid-template-columns: 120px 120px 1fr;">
+      <div class="btn unknown"><div class="lbl">SHIFT</div><div class="note">NI: universal modifier<br>VJ: 2nd-layer access</div></div>
+      <div class="btn unknown"><div class="lbl">NOTE REPEAT</div><div class="note">NI: hold+pad repeat<br>VJ: stutter on pads?</div></div>
+      <div style="font-size:11px;color:var(--txt-dim);padding:8px;">
+        SHIFT is the secret weapon: every page selector + every vertical + every mode-button could have a SHIFT-layer giving us effectively 2× the bindings without adding hardware.
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="legend">
+  <div class="legend-item"><span class="legend-swatch bound"></span> bound (working today)</div>
+  <div class="legend-item"><span class="legend-swatch master"></span> master section (bound)</div>
+  <div class="legend-item"><span class="legend-swatch proposed"></span> proposed (page selectors)</div>
+  <div class="legend-item"><span class="legend-swatch unknown"></span> NI label known, VJ binding unknown — discovery pending</div>
+  <div class="legend-item"><span class="legend-swatch unbound"></span> truly unbound</div>
+</div>
+
+<div class="explain" style="margin-top:20px;">
+  <b>Status of unknowns:</b> bits 8-17 are unmapped in our driver. Per the
+  NI manual research, those bits almost certainly cover the
+  <b>CONTROL / STEP / BROWSE / SAMPLING / ALL / AUTO WRITE</b> column AND
+  the bottom <b>SHIFT / NOTE REPEAT / ERASE / TAP / REC</b> cluster. One
+  10-min discovery session per cluster pins them all. Then each gets a
+  VJ remap that respects NI's silkscreen intent (e.g. BROWSE = open
+  library nav, ERASE = clear pad/clip, REC = start session recording).
+</div>
+
+<script>
+// Example vibe-set pages. These are just defaults — edit freely; each
+// `vs` entry is a free-text vibe-search string the operator can map.
+const PAGES = [
+  { name: 'PALETTE',    vs: ['warm', 'cool', 'red', 'blue', 'green', 'purple', 'mono'] },
+  { name: 'ENERGY',     vs: ['ambient', 'soft', 'groove', 'build', 'drive', 'peak', 'chaos'] },
+  { name: 'GEOMETRY',   vs: ['particles', 'linear', 'polygons', 'masks', 'edges', 'grain', 'organic'] },
+  { name: 'MOTION',     vs: ['static', 'smooth', 'dynamic', 'jumpy', 'slow', 'fast', 'glitch'] },
+  { name: 'COLOR WARM', vs: ['warm·orange', 'warm·red', 'warm·yellow', 'warm·magenta', 'warm·hi-energy', 'warm·slow', 'warm·peak'] },
+  { name: 'COLOR COOL', vs: ['cool·blue', 'cool·cyan', 'cool·green', 'cool·breakdown', 'cool·UV/neon', 'cool·dark', 'cool·atmos'] },
+  { name: 'SET ARC',    vs: ['opening', 'build', 'pre-drop', 'DROP', 'breakdown', 'outro', 'hero-clip'] },
+  { name: 'FOLDERS',    vs: ['folder-1', 'folder-2', 'folder-3', 'folder-4', 'folder-5', 'folder-6', 'folder-7'] },
+];
+
+const pageRow = document.getElementById('page-row');
+const oledPagename = document.getElementById('oled-pagename');
+const oledVlist = document.getElementById('oled-vlist');
+const verticals = document.getElementById('verticals');
+const padsEl = document.getElementById('pads');
+
+PAGES.forEach((p, i) => {
+  const b = document.createElement('div');
+  b.className = 'btn page';
+  b.dataset.idx = i;
+  b.innerHTML = `<div class="bit">btn ${i+1} · bit ${i}</div><div class="lbl">PAGE ${i+1}<br>${p.name}</div>`;
+  b.addEventListener('click', () => setPage(i));
+  pageRow.appendChild(b);
+});
+
+for (let i = 1; i <= 16; i++) {
+  const p = document.createElement('div');
+  p.className = 'pad'; p.dataset.num = i; p.textContent = '•';
+  padsEl.appendChild(p);
+}
+
+function setPage(idx) {
+  const p = PAGES[idx];
+  document.querySelectorAll('#page-row .btn').forEach(b => {
+    b.classList.toggle('active', parseInt(b.dataset.idx) === idx);
+  });
+  oledPagename.textContent = p.name;
+  oledVlist.innerHTML = p.vs.map((v, i) => `${i+1}·${v}`).join('<br>');
+  verticals.innerHTML = '';
+  p.vs.forEach((label, i) => {
+    const v = document.createElement('div');
+    v.className = 'vert';
+    v.innerHTML = `<div class="bit">v${i+1} · bit ${40+i}</div>${label}`;
+    verticals.appendChild(v);
+  });
+  const reroll = document.createElement('div');
+  reroll.className = 'vert reroll';
+  reroll.innerHTML = `<div class="bit">v8 · bit 47</div>REROLL`;
+  verticals.appendChild(reroll);
+}
+
+setPage(2); // start on TOP PERF A so left-OLED's "Marilyn Mayson" example matches
+</script>
+
+</body>
+</html>

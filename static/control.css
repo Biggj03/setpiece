@@ -1,0 +1,3979 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+html, body {
+    background: #0a0a0a;
+    color: #e0e0e0;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Mono", Menlo, monospace;
+    font-size: 16px;
+    height: 100%;
+    overflow-x: hidden;
+}
+
+#error-banner {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    background: #cc2222;
+    color: white;
+    padding: 12px;
+    font-size: 14px;
+    z-index: 1000;
+    text-align: center;
+}
+
+#error-banner.hidden {
+    display: none;
+}
+
+/* ── Sticky status strip — CDJ-3000 aesthetic (2026-05-17 v2 polish)
+   Brutalist condensed typography (Barlow Condensed) for tempo/timecode,
+   Pioneer color palette (#3b82f6 / #f59e0b / #fff / #ef4444 / #eab308),
+   8pt grid spacing. See CDJ_AESTHETIC.md for the full design language. */
+
+.status-strip {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: #0f172a;   /* CDJ deep charcoal */
+    border-bottom: 1px solid #1a1a1a;
+    padding: 8px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.ss-line {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.ss-line-file { gap: 16px; }
+
+.ss-filename {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-family: 'Barlow Condensed', system-ui, sans-serif;
+    font-weight: 500;
+    font-size: 18px;
+    letter-spacing: 0.02em;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ss-line-meta {
+    font-size: 13px;
+    color: #999;
+    font-variant-numeric: tabular-nums;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: baseline;
+}
+
+/* Timecode — big brutalist numbers, CDJ-style. Position elapsed is
+   bright white (the operator's primary anchor), duration dim.        */
+.ss-time {
+    font-family: 'Barlow Condensed', system-ui, sans-serif;
+    font-weight: 700;
+    font-size: 22px;
+    color: #fff;
+    letter-spacing: 0.02em;
+    line-height: 1;
+}
+.ss-time-dur {
+    color: #555;
+    font-weight: 500;
+    font-size: 18px;
+}
+.ss-time-sep {
+    color: #333;
+    margin: 0 4px;
+    font-size: 18px;
+}
+.ss-divider {
+    color: #333;
+    margin: 0 4px;
+}
+
+/* BPM — the operator's most-glanced number. Goes BIG in CDJ style.
+   Green when live (audio-reactive on); dim when no lock. */
+.ss-bpm {
+    font-family: 'Barlow Condensed', system-ui, sans-serif;
+    font-weight: 700;
+    font-size: 26px;
+    color: #22c55e;
+    letter-spacing: 0.02em;
+    line-height: 1;
+}
+
+/* Phase meter (CDJ Tier-2). Compact 2-element widget right of BPM:
+   - .ss-phase-fill = thin bar that fills 0→100% across each beat, snaps
+     back to 0 on the next beat hit (red = REACT live; grey = idle).
+   - .ss-phase-beat = beat counter (1/2/3/4 of a 4-beat bar) that pulses
+     on each beat. CDJ-flavored — operator knows where in the bar they
+     are without watching a screen full of waveforms.
+   Width set so the fill rendering has a real 60-pixel canvas. */
+.ss-phase {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: 8px;
+}
+.ss-phase-fill {
+    display: inline-block;
+    position: relative;
+    width: 60px;
+    height: 3px;
+    background: #1a1a1a;
+    border-radius: 2px;
+    overflow: hidden;
+}
+.ss-phase-fill::after {
+    content: '';
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: var(--phase, 0%);
+    background: var(--phase-color, #444);
+    border-radius: 2px;
+    transition: background 200ms ease;
+}
+.ss-phase-beat {
+    font-family: 'Barlow Condensed', system-ui, sans-serif;
+    font-weight: 700;
+    font-size: 14px;
+    color: #555;
+    min-width: 8px;
+    text-align: center;
+    transition: color 80ms ease, transform 80ms ease;
+}
+.ss-phase-beat.beat-pulse {
+    color: #ef4444;
+    transform: scale(1.4);
+}
+
+/* Status badges — uppercase + letter-spacing, brutalist condensed.
+   ON state uses high-contrast inversion. */
+.ss-react,
+.ss-play {
+    font-family: 'Barlow Condensed', system-ui, sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    padding: 3px 10px;
+    border-radius: 3px;
+    text-transform: uppercase;
+}
+.ss-react-on  { background: #ef4444; color: #fff; box-shadow: 0 0 8px rgba(239, 68, 68, 0.4); }
+.ss-react-off { background: #1a1a1a; color: #444; }
+.ss-playing   { background: #22c55e; color: #000; }
+.ss-paused    { background: #1a1a1a; color: #eab308; }
+
+/* ARC = set-arc phase indicator. Same shape as ss-react/ss-play
+   so it lines up in the status strip. Color is set inline from JS
+   per active phase. Off state is dim like ss-react-off. */
+.ss-arc {
+    font-family: 'Barlow Condensed', system-ui, sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    padding: 3px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    transition: background 120ms ease, color 120ms ease,
+                box-shadow 120ms ease;
+}
+.ss-arc-off { background: #1a1a1a; color: #444; }
+.ss-arc-on  { /* bg/color/shadow set inline per phase */ }
+.ss-arc:active { transform: translateY(1px); }
+
+/* Phrase ticker — sits in status strip showing latest spotter hit */
+.ss-phrase {
+    font-family: 'Barlow Condensed', system-ui, sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    padding: 3px 8px;
+    border-radius: 4px;
+    transition: background 200ms ease, color 200ms ease;
+    min-width: 0;
+    max-width: 280px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.ss-phrase-idle      { background: transparent; color: transparent; padding: 0; }
+.ss-phrase-listening { background: #1a1a1a;     color: #555; font-style: italic; }
+.ss-phrase-fresh     { background: #d97706;     color: #fff; box-shadow: 0 0 8px rgba(217, 119, 6, 0.6); }
+.ss-phrase-mid       { background: #6b3a06;     color: #fcd34d; }
+.ss-phrase-stale     { background: #1f1f1f;     color: #777; }
+
+/* Stem-onset pulse: magenta for kicks (distinct from phrase orange) */
+.ss-stems {
+    font-family: 'Barlow Condensed', system-ui, sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    padding: 3px 8px;
+    border-radius: 4px;
+    transition: background 80ms ease, color 80ms ease, box-shadow 80ms ease;
+}
+.ss-stems-idle      { background: transparent; color: transparent; padding: 0; }
+.ss-stems-listening { background: #1a1a1a;     color: #555; font-style: italic; }
+.ss-stems-hot       { background: #c026d3;     color: #fff; box-shadow: 0 0 10px rgba(192, 38, 211, 0.7); }
+.ss-stems-cool      { background: #4a1b50;     color: #f0abfc; }
+
+/* Cohesion anchor: amber-tinted to signal "this is the locked sub-pool" */
+.ss-cohesion {
+    font-family: 'Barlow Condensed', system-ui, sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    padding: 3px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 200ms ease, color 200ms ease;
+    user-select: none;
+}
+.ss-cohesion-idle   { background: transparent; color: transparent; padding: 0; cursor: default; }
+.ss-cohesion-empty  { background: #1a1a1a;     color: #555; font-style: italic; }
+.ss-cohesion-hot    { background: #92400e;     color: #fef3c7; box-shadow: 0 0 6px rgba(245, 158, 11, 0.5); }
+.ss-cohesion-cool   { background: #78350f;     color: #fed7aa; }
+.ss-cohesion-fading { background: #451a03;     color: #fdba74; font-style: italic; }
+
+.ss-progress {
+    height: 3px;
+    background: #1a1a1a;
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 4px;
+}
+
+#progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #22c55e, #f59e0b);
+    width: 0%;
+    transition: width 0.2s;
+}
+
+.status-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #444;
+    transition: background 0.3s;
+    flex-shrink: 0;
+}
+
+.status-dot.online {
+    background: #00ff88;
+    box-shadow: 0 0 10px #00ff88;
+}
+
+.status-dot.offline {
+    background: #cc2222;
+}
+
+main {
+    padding: 12px;
+    display: grid;
+    /* minmax(0, 1fr) — NOT plain 1fr. A plain 1fr track has an implicit
+       min-content floor, so a panel containing an unbreakable string
+       (e.g. .monitor-name's long no-space filename with white-space:
+       nowrap) forces its track wider than the viewport and the right
+       column gets cut off. minmax(0, ...) lets the track shrink and the
+       child's own overflow:hidden/ellipsis then does its job. */
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 12px;
+}
+
+.panel {
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 16px;
+    /* Grid items default to min-width:auto (= min-content), which would
+       re-introduce the overflow above even with minmax(0,1fr) tracks.
+       min-width:0 lets the panel shrink to its track. */
+    min-width: 0;
+}
+
+/* Zone dividers — split the page into PERFORM (live) and TOOLS &
+   REVIEW (debug/setup). Full-width band so the boundary is obvious
+   when scrolling. Spans all grid columns. (2026-05-20 restructure.) */
+.zone-divider {
+    grid-column: 1 / -1;
+    margin: 6px 0 2px;
+    padding: 5px 14px;
+    font-family: 'Barlow Condensed', system-ui, sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.22em;
+    color: #6b7280;
+    text-transform: uppercase;
+    border-top: 1px solid #2a2a2a;
+    border-bottom: 1px solid #2a2a2a;
+    background: #141414;
+}
+.zone-divider-perform {
+    color: #5e8bd6;          /* perform = cool blue */
+    border-color: #1e3a5f;
+}
+
+/* ── Preview panel (live stream of the staged "next up" deck) ───────── */
+#monitor-panel .monitor-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+.monitor-hint {
+    font-size: 11px;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.monitor-frame {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    background: #000;
+    border: 1px solid #333;
+    border-radius: 6px;
+    overflow: hidden;
+}
+#preview-monitor {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;       /* letterbox non-16:9 sources cleanly */
+    display: block;
+}
+#preview-monitor.hidden { display: none; }
+.monitor-offline {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: #555;
+    pointer-events: none;
+}
+.monitor-offline.hidden { display: none; }
+.monitor-name {
+    margin-top: 8px;
+    font-size: 12px;
+    color: #aaa;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ── Scratch panel (session basket of library files) ────────────────── */
+/* Full grid-row span — the bank view inside this panel is now the
+   iPad's primary visual surface and needs the full page width
+   (2026-05-16 v2 layout rework). */
+#scratch-panel {
+    grid-column: 1 / -1;
+    /* Promoted-to-top (2026-05-19): teal accent — the MK2 mirror is
+       now the lead panel since user spends most time on MK2 hardware. */
+    border-left: 4px solid #5eead4;
+    padding-left: 12px;
+}
+
+#scratch-panel .scratch-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+#scratch-panel .scratch-header h2 {
+    font-size: 22px;
+    letter-spacing: 0.04em;
+    color: #99f6e4;
+}
+#scratch-panel .scratch-toolbar {
+    display: flex;
+    gap: 6px;
+}
+.scratch-btn {
+    background: #232323;
+    color: #ddd;
+    border: 1px solid #333;
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 11px;
+    cursor: pointer;
+    transition: background 80ms ease, border-color 80ms ease;
+}
+.scratch-btn:hover { background: #2a2a2a; border-color: #555; }
+.scratch-btn:active { background: #00ff88; color: #000; }
+.scratch-clear-btn { color: #888; }
+.scratch-clear-btn:hover { color: #ff4444; border-color: #ff4444; }
+
+.proxy-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 0 10px 0;
+    border-bottom: 1px solid #2a2a2a;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+}
+.proxy-status .ps-text {
+    color: #888;
+    font-size: 11px;
+    flex: 1 1 auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.proxy-status .ps-text.busy { color: #ffcc00; }
+.proxy-status .ps-text.paused { color: #ff9933; }
+.proxy-status .ps-btn {
+    background: #232323;
+    color: #aaa;
+    border: 1px solid #333;
+    border-radius: 6px;
+    padding: 4px 9px;
+    font-size: 11px;
+    cursor: pointer;
+}
+.proxy-status .ps-btn:hover { background: #2a2a2a; color: #ddd; }
+.proxy-status .ps-warn:hover { color: #ff4444; border-color: #ff4444; }
+.proxy-status .ps-btn.active {
+    background: #00aa66;
+    color: #000;
+    border-color: #00ff88;
+    font-weight: 600;
+}
+
+.decks-clear-all-btn {
+    background: #232323;
+    color: #888;
+    border: 1px solid #333;
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: 11px;
+    cursor: pointer;
+    margin-left: auto;
+}
+.decks-clear-all-btn:hover { color: #ff4444; border-color: #ff4444; }
+
+/* Banks A-H: 8-slot quick-switch grid */
+.banks-row {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 4px;
+    padding: 6px 0 10px 0;
+    border-bottom: 1px solid #2a2a2a;
+    margin-bottom: 8px;
+}
+.bank-slot {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: #1f1f1f;
+    border: 1px solid #2c2c2c;
+    border-radius: 6px;
+    padding: 6px 4px;
+    cursor: pointer;
+    min-height: 44px;
+    transition: background 80ms ease, border-color 80ms ease;
+}
+.bank-slot:hover {
+    background: #262626;
+    border-color: #555;
+}
+.bank-slot.has-content {
+    border-color: #00aa66;
+}
+.bank-slot.active {
+    background: #00aa66;
+    color: #000;
+    border-color: #00ff88;
+    font-weight: 700;
+}
+.bank-slot .bs-letter {
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+}
+.bank-slot .bs-name {
+    font-size: 9px;
+    color: #888;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+}
+.bank-slot.active .bs-name { color: #003322; }
+.bank-slot .bs-count {
+    position: absolute;
+    top: 2px;
+    right: 4px;
+    font-size: 8px;
+    color: #555;
+}
+.bank-slot.active .bs-count { color: #003322; }
+.bank-slot .bs-save-hint {
+    font-size: 8px;
+    color: #444;
+    margin-top: 2px;
+}
+
+/* Peek button: small ▸ at the bottom-right of each populated chip.
+   Tap to open the bank-preview drawer. Stop-propagation in the JS
+   so it doesn't also trigger the chip's load gesture. */
+.bank-slot .bs-peek {
+    position: absolute;
+    bottom: 1px;
+    right: 3px;
+    background: transparent;
+    border: 0;
+    color: #555;
+    font-size: 10px;
+    line-height: 1;
+    padding: 2px 4px;
+    cursor: pointer;
+    border-radius: 3px;
+    -webkit-tap-highlight-color: rgba(0, 170, 255, 0.4);
+}
+.bank-slot .bs-peek:hover { color: #00aaff; background: rgba(0, 170, 255, 0.12); }
+.bank-slot.active .bs-peek { color: #003322; }
+.bank-slot.active .bs-peek:hover { color: #001a11; background: rgba(0,0,0,0.15); }
+
+/* Bank view (always visible, full-width since 2026-05-16 v2). The
+   iPad's primary job is INFO (the "what" and "when" the user said)
+   — thumbs need room to breathe. Horizontal banks-row chips were
+   killed; bp-groups inside the drawer is the only bank nav now. */
+.bank-preview {
+    margin: 0 0 12px 0;
+    background: #131313;
+    border: 1px solid #2a2a2a;
+    border-radius: 6px;
+    overflow: hidden;
+}
+.bank-preview.hidden { display: none; }  /* legacy — drawer no longer hides */
+
+.bp-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    background: #1a1a1a;
+    border-bottom: 1px solid #2a2a2a;
+}
+.bp-letter {
+    font-size: 18px;
+    font-weight: 700;
+    color: #00ff88;
+    min-width: 22px;
+    text-align: center;
+}
+.bp-name {
+    font-size: 13px;
+    color: #ddd;
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.bp-count {
+    font-size: 11px;
+    color: #888;
+    font-variant-numeric: tabular-nums;
+}
+.bp-load, .bp-close {
+    background: #232323;
+    border: 1px solid #333;
+    color: #ddd;
+    border-radius: 4px;
+    font-family: inherit;
+    cursor: pointer;
+    padding: 5px 10px;
+    font-size: 12px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+.bp-load { color: #00ff88; border-color: #2a4a3a; }
+.bp-load:hover { background: #00aa66; color: #000; border-color: #00ff88; }
+.bp-reroll {
+    background: #232323;
+    border: 1px solid #333;
+    color: #d97706;
+    border-radius: 4px;
+    font-family: inherit;
+    cursor: pointer;
+    padding: 5px 10px;
+    font-size: 14px;
+    line-height: 1;
+    margin-right: 6px;
+}
+/* Layer overlay chip (2026-05-18). Lives in .bp-header next to
+   reroll / load. Color cyan so it pops as "this controls the
+   categorization, not a per-bank action". Pulsing border when on
+   a non-default layer makes it obvious the layer is overridden. */
+.bp-layer {
+    background: #1a2a2a;
+    border: 1px solid #2a4a4a;
+    color: #66ddee;
+    border-radius: 4px;
+    font-family: inherit;
+    cursor: pointer;
+    padding: 5px 9px;
+    font-size: 11px;
+    line-height: 1;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    margin-right: 6px;
+    font-variant-numeric: tabular-nums;
+}
+.bp-layer:hover {
+    background: #1f3a3a;
+    color: #aaeeff;
+    border-color: #4a8888;
+}
+.bp-layer.non-default {
+    color: #ffcc66;
+    border-color: #886622;
+    background: #2a2218;
+}
+.bp-layer.non-default:hover {
+    color: #ffe699;
+    border-color: #ccaa44;
+}
+.bp-reroll:hover {
+    background: #d97706;
+    color: #000;
+    border-color: #f59e0b;
+}
+.bp-reroll:disabled { opacity: 0.6; cursor: wait; }
+.bp-close {
+    padding: 5px 8px;
+    font-size: 16px;
+    line-height: 1;
+}
+.bp-close:hover { color: #ff4444; border-color: #aa2222; }
+
+/* MK2-mirror layout (2026-05-16) — drawer body is 3 columns:
+   bp-groups (bank letters, mirrors MK2 group buttons) |
+   bp-verts  (vertical buttons, mirrors MK2 perform row) |
+   bp-pads   (4×4 thumb grid, mirrors MK2 pads).
+   Spatial layout matches the hardware so muscle memory transfers. */
+.bp-mirror {
+    display: grid;
+    grid-template-columns: auto auto 1fr;
+    gap: 8px;
+    padding: 6px;
+    align-items: start;
+    /* Compact mode (2026-05-19): user said the MK2 section needed to
+       fit without scrolling. Pad column drives height; cap it. */
+    max-height: 260px;
+}
+
+/* LEFT: bank letters in 2 cols × 4 rows, like MK2 groups A-H.
+   Compact (was 48px) so the whole mirror fits without scroll. */
+.bp-groups {
+    display: grid;
+    grid-template-columns: repeat(2, 40px);
+    grid-template-rows: repeat(4, 40px);
+    gap: 4px;
+}
+.bp-group {
+    background: #1f1f1f;
+    border: 1px solid #2c2c2c;
+    color: #888;
+    border-radius: 5px;
+    font-weight: 700;
+    font-family: inherit;
+    font-size: 18px;
+    cursor: pointer;
+    padding: 0;
+    -webkit-tap-highlight-color: rgba(0, 170, 255, 0.4);
+}
+.bp-group:hover { background: #262626; color: #ddd; }
+.bp-group.active {
+    background: #00aa66;
+    color: #000;
+    border-color: #00ff88;
+    box-shadow: 0 0 8px rgba(0, 255, 136, 0.4);
+}
+.bp-group.peeked {
+    background: #003355;
+    color: #00aaff;
+    border-color: #0077aa;
+}
+.bp-group.active.peeked {
+    /* Active AND peeked = the loaded bank is what you're looking at */
+    background: #00aa66;
+    border-color: #00ffff;
+    box-shadow: 0 0 8px #00ffff;
+}
+
+/* MIDDLE: verticals (folder shortcuts), 1 col × 8 rows. Bumped width
+   + row height (2026-05-16 v2) so labels read clearly on iPad and
+   are easy to tap as the panic-button "backup" the user described. */
+.bp-verts {
+    display: grid;
+    grid-template-columns: 110px;
+    grid-template-rows: repeat(8, 20px);   /* was 24px */
+    gap: 2px;                              /* was 3px */
+}
+.bp-vert {
+    background: #1a1a1a;
+    border: 1px solid #2a2a2a;
+    color: #ccc;
+    border-radius: 3px;
+    font-family: inherit;
+    font-size: 11px;
+    cursor: pointer;
+    padding: 0 8px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: left;
+    -webkit-tap-highlight-color: rgba(170, 170, 0, 0.3);
+}
+.bp-vert:hover { background: #232323; color: #ffcc44; border-color: #4a4422; }
+.bp-vert-empty { color: #333; cursor: default; }
+.bp-vert-empty:hover { background: #1a1a1a; color: #333; border-color: #2a2a2a; }
+
+/* RIGHT: pads — 4×4 thumb grid (= MK2 pad surface, with thumbs
+   instead of pad LEDs). Locked to 4 cols so spatial mirror is exact.
+   Compact 2026-05-19: cap thumb aspect to 16:11 (was 16:9) so pads
+   are squatter and the whole mirror fits the viewport. */
+.bp-pads {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    grid-auto-rows: 1fr;
+    gap: 5px;
+    /* 4 square rows + gaps. overflow:hidden keeps it in-viewport. */
+    max-height: 268px;
+    overflow: hidden;
+}
+.bp-card {
+    background: #0e0e0e;
+    border: 1px solid #2a2a2a;
+    /* Rounded-square — mirrors the physical shape of an MK2 pad. */
+    border-radius: 8px;
+    overflow: hidden;
+}
+.bp-thumb-wrap {
+    position: relative;
+    /* Square (2026-05-20): the card now IS the pad — same 1:1 shape
+       as the physical MK2 pad it mirrors, no caption below. */
+    aspect-ratio: 1 / 1;
+    background: #0a0a0a;
+}
+.bp-thumb {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.bp-thumb-missing {
+    background: repeating-linear-gradient(
+        45deg, #181818, #181818 5px, #232323 5px, #232323 10px);
+    color: transparent;
+    font-size: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+/* Corner badge overlays. Stacked top-left → bpm; top-right → star;
+   bottom-right → cue count. Translucent dark bg so they read against
+   any thumb content. */
+.bp-corners {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+.bp-cnr {
+    position: absolute;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 3px;
+    background: rgba(0, 0, 0, 0.72);
+    line-height: 1.3;
+    font-variant-numeric: tabular-nums;
+    backdrop-filter: blur(2px);
+}
+.bp-cnr-bpm   { top: 3px; left: 3px;     color: #6bdca8; }
+.bp-cnr-star  { top: 3px; right: 3px;    color: #ffcc44; }
+.bp-cnr-cues  { bottom: 3px; right: 3px; color: #6b8fdc; }
+
+/* .bp-caption removed 2026-05-20 — pad thumbs are caption-free now;
+   the filename is on the card `title` for hover/long-press. */
+.bp-empty {
+    padding: 12px;
+    text-align: center;
+    color: #555;
+    font-style: italic;
+}
+
+.scratch-sets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px solid #2a2a2a;
+}
+.scratch-sets:empty { display: none; }
+.scratch-set-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: #1b1b1b;
+    color: #99c;
+    border: 1px solid #2c2c4c;
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 11px;
+    cursor: pointer;
+}
+.scratch-set-chip:hover {
+    background: #232336;
+    border-color: #555;
+}
+.scratch-set-chip .ss-name { color: inherit; }
+.scratch-set-chip .ss-count { color: #555; font-size: 10px; }
+.scratch-set-chip .ss-delete {
+    background: none;
+    border: none;
+    color: #555;
+    font-size: 13px;
+    cursor: pointer;
+    padding: 0 2px;
+}
+.scratch-set-chip .ss-delete:hover { color: #ff4444; }
+.scratch-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    max-height: 220px;
+    overflow-y: auto;
+}
+.scratch-list .empty {
+    color: #555;
+    font-size: 11px;
+    padding: 6px 0;
+}
+.scratch-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #232323;
+    border: 1px solid #333;
+    border-radius: 6px;
+    padding: 5px 9px;
+    font-size: 11px;
+    max-width: 100%;
+}
+.scratch-chip .scratch-fire {
+    background: none;
+    border: none;
+    color: #ddd;
+    font-size: 11px;
+    cursor: pointer;
+    padding: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 220px;
+}
+.scratch-chip .scratch-fire:hover { color: #00ff88; }
+.scratch-chip .scratch-remove {
+    background: none;
+    border: none;
+    color: #666;
+    font-size: 13px;
+    cursor: pointer;
+    padding: 0 2px;
+}
+.scratch-chip .scratch-remove:hover { color: #ff4444; }
+
+/* Tiny + button on each library row to drop into scratch */
+.library-row .lib-scratch-add {
+    background: none;
+    border: 1px solid #333;
+    color: #888;
+    border-radius: 4px;
+    padding: 0 6px;
+    font-size: 11px;
+    cursor: pointer;
+    margin-left: 6px;
+}
+.library-row .lib-scratch-add:hover {
+    color: #00ff88;
+    border-color: #00ff88;
+}
+
+/* ── Scenes panel (saved 4-deck layouts) ─────────────────────────────── */
+#scenes-panel .scenes-header {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+#scenes-panel .scenes-toolbar {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    flex: 1 1 auto;
+    justify-content: flex-end;
+}
+.scene-name-input {
+    background: #1f1f1f;
+    color: #ddd;
+    border: 1px solid #333;
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 12px;
+    min-width: 180px;
+    flex: 0 1 240px;
+}
+.scene-name-input:focus {
+    outline: none;
+    border-color: #00ff88;
+}
+.scene-save-btn {
+    background: #00ff88;
+    color: #000;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: filter 80ms ease;
+}
+.scene-save-btn:hover { filter: brightness(1.1); }
+.scene-save-btn:active { filter: brightness(0.85); }
+.scenes-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.scenes-list .empty {
+    color: #555;
+    font-size: 11px;
+    padding: 6px 0;
+}
+.scene-chip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: #232323;
+    border: 1px solid #333;
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 12px;
+}
+.scene-chip .scene-load {
+    background: none;
+    border: none;
+    color: #ddd;
+    font-size: 12px;
+    cursor: pointer;
+    padding: 0;
+}
+.scene-chip .scene-load:hover { color: #00ff88; }
+.scene-chip .scene-count {
+    color: #888;
+    font-size: 10px;
+}
+.scene-chip .scene-delete {
+    background: none;
+    border: none;
+    color: #666;
+    font-size: 14px;
+    cursor: pointer;
+    padding: 0 2px;
+}
+.scene-chip .scene-delete:hover { color: #ff4444; }
+
+/* ── Clip Bank panel (cross-video shortlist) ─────────────────────────── */
+#bank-panel .bank-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 8px;
+}
+#bank-panel .bank-hint {
+    font-size: 10px;
+    color: #666;
+    letter-spacing: 0.05em;
+}
+.active-tag-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 6px 0 10px 0;
+    padding: 6px 8px;
+    background: #161616;
+    border: 1px solid #2a2a2a;
+    border-radius: 6px;
+}
+.active-tag-row.set {
+    border-color: #00ff88;
+    box-shadow: 0 0 6px rgba(0, 255, 136, 0.18);
+}
+.active-tag-label {
+    font-size: 10px;
+    color: #888;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+.active-tag-input {
+    flex: 1;
+    background: #0c0c0c;
+    border: 1px solid #2a2a2a;
+    border-radius: 4px;
+    color: #ddd;
+    padding: 4px 8px;
+    font-size: 12px;
+    font-family: inherit;
+    min-width: 0;
+}
+.active-tag-input:focus {
+    outline: none;
+    border-color: #00ff88;
+}
+.active-tag-clear {
+    background: #2a2a2a;
+    border: none;
+    color: #888;
+    font-size: 14px;
+    width: 22px;
+    height: 22px;
+    border-radius: 4px;
+    cursor: pointer;
+    line-height: 1;
+}
+.active-tag-clear:hover {
+    background: #cc2222;
+    color: #fff;
+}
+.bank-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    max-height: 220px;
+    overflow-y: auto;
+}
+.bank-list .empty {
+    color: #555;
+    font-size: 11px;
+    padding: 6px 0;
+}
+.bank-chip {
+    background: #232323;
+    border: 1px solid #333;
+    border-radius: 6px;
+    padding: 6px 10px;
+    color: #ddd;
+    font-size: 11px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 100%;
+    transition: background 80ms ease, border-color 80ms ease;
+}
+.bank-chip:hover {
+    background: #2a2a2a;
+    border-color: #555;
+}
+.bank-chip:active {
+    background: #00ff88;
+    color: #000;
+}
+.bank-chip.starred {
+    border-color: #ffcc00;
+}
+.bank-chip .bank-star {
+    color: #ffcc00;
+    font-size: 10px;
+}
+.bank-chip .bank-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 140px;
+}
+.bank-chip .bank-bpm {
+    color: #888;
+    font-size: 9px;
+    margin-left: auto;
+}
+
+.panel h2 {
+    font-size: 12px;
+    color: #888;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+}
+
+/* (Now Playing + Markers + Audio Reactive + S2 mirror panels: deleted
+   in iPad audit 2026-05-16. Replaced by .status-strip near the top.
+   Old rules: .filename, .timecode, .progress-bar, .play-status,
+   #play-icon, .marker-*, .audio-status, #audio-state, #audio-bpm,
+   #beat-indicator, .sensitivity, .s2-status, #s2-state, .s2-pads,
+   .pad, .s2-action, .s2-jog-mode, #jog-mode — all gone.)
+   Where state shows up now: see .status-strip block at top of file.   */
+
+#clips-list {
+    list-style: none;
+    max-height: 320px;
+    overflow-y: auto;
+}
+
+#clips-list li {
+    padding: 8px;
+    border-bottom: 1px solid #2a2a2a;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+#clips-list li.clip-row {
+    cursor: pointer;
+    -webkit-tap-highlight-color: rgba(0, 255, 136, 0.3);
+    transition: background 0.1s;
+}
+
+#clips-list li.clip-row:active {
+    background: #003322;
+}
+
+#clips-list li.clip-row:hover {
+    background: #1f1f1f;
+}
+
+#clips-list li.empty {
+    color: #444;
+    text-align: center;
+    font-style: italic;
+    display: block;
+}
+
+/* ── Thumbnail tile ─────────────────────────────────────────────── */
+.clip-thumb-wrap {
+    position: relative;
+    width: 60px;
+    height: 34px;
+    flex-shrink: 0;
+    background: #000;
+    border: 1px solid #333;
+    border-radius: 3px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+.clip-thumb {
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: cover;
+    /* Hidden until it loads — keeps the placeholder visible during fetch */
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+
+.clip-thumb.loaded {
+    opacity: 1;
+}
+
+.clip-thumb-placeholder {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #1a1a1a, #0a0a0a);
+    color: #444;
+    font-size: 8px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    pointer-events: none;
+}
+
+/* Slot-number badge in the corner — turns the row into a launchpad cell */
+.clip-slot {
+    position: absolute;
+    top: 1px;
+    left: 2px;
+    color: #00ff88;
+    font-size: 10px;
+    font-weight: 600;
+    text-shadow: 0 0 3px #000, 0 0 3px #000;
+    pointer-events: none;
+}
+
+.clip-meta {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+#clips-list .clip-name {
+    color: #fff;
+    font-size: 13px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+#clips-list .clip-time {
+    color: #888;
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+}
+
+#clips-list li.clip-row.firing {
+    background: #003322;
+    box-shadow: inset 0 0 12px rgba(0, 255, 136, 0.3);
+}
+
+.clip-delete {
+    background: transparent;
+    border: 1px solid #444;
+    color: #888;
+    width: 28px;
+    height: 28px;
+    border-radius: 4px;
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    flex-shrink: 0;
+    -webkit-tap-highlight-color: rgba(255, 0, 0, 0.3);
+    transition: all 0.1s;
+}
+
+.clip-delete:hover, .clip-delete:active {
+    background: #441111;
+    border-color: #cc2222;
+    color: #ff4444;
+}
+
+.clips-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.clips-header h2 {
+    margin-bottom: 0;
+}
+
+.clips-clear-all {
+    background: transparent;
+    border: 1px solid #444;
+    color: #888;
+    padding: 4px 10px;
+    border-radius: 3px;
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    text-transform: uppercase;
+    -webkit-tap-highlight-color: rgba(255, 0, 0, 0.3);
+}
+
+.clips-clear-all:hover, .clips-clear-all:active {
+    background: #441111;
+    border-color: #cc2222;
+    color: #ff4444;
+}
+
+#clips-list li.clip-row.firing .clip-thumb-wrap {
+    border-color: #00ff88;
+    box-shadow: 0 0 8px #00ff88;
+}
+
+/* ── Clips toolbar (sort dropdown + clear-all) ───────────────────── */
+
+.clips-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.clips-sort {
+    background: #0d0d0d;
+    border: 1px solid #2a2a2a;
+    color: #ccc;
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    border-radius: 3px;
+    -webkit-appearance: none;
+    appearance: none;
+    cursor: pointer;
+}
+
+.clips-sort:focus {
+    outline: none;
+    border-color: #00ff88;
+}
+
+/* ── Clips filter bar (All / Star / per-tag chips) ───────────────── */
+
+.clips-filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #1a1a1a;
+}
+
+.filter-chip {
+    background: #1a1a1a;
+    border: 1px solid #2a2a2a;
+    color: #888;
+    padding: 4px 10px;
+    border-radius: 14px;
+    font-size: 12px;
+    letter-spacing: 0.03em;
+    cursor: pointer;
+    -webkit-tap-highlight-color: rgba(0, 255, 136, 0.3);
+    transition: all 0.12s;
+    line-height: 1.2;
+}
+
+.filter-chip:active { transform: scale(0.95); }
+
+/* Active = green halo. Same vibe as Spotify's "selected playlist" pill. */
+.filter-chip.active {
+    background: #003322;
+    border-color: #00ff88;
+    color: #00ff88;
+    box-shadow: 0 0 6px rgba(0, 255, 136, 0.55);
+}
+
+.filter-chip.filter-star {
+    font-size: 14px;
+    padding: 3px 10px;
+}
+
+.filter-chip.filter-star.active {
+    background: #332200;
+    border-color: #ffcc00;
+    color: #ffcc00;
+    box-shadow: 0 0 6px rgba(255, 204, 0, 0.55);
+}
+
+/* BPM range chip — neutral when inactive, blue when a band is picked.
+   Active label expands ("110-130 BPM") so the user can see at a glance
+   which range they're looking at without opening the picker. */
+.filter-chip.filter-bpm {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.04em;
+}
+
+.filter-chip.filter-bpm.active {
+    background: #002233;
+    border-color: #66ddff;
+    color: #66ddff;
+    box-shadow: 0 0 6px rgba(102, 221, 255, 0.55);
+}
+
+/* Inline band picker shown when the BPM chip is open. Same dark pill
+   styling as the chips so it doesn't feel like a modal — it's an
+   extension of the filter bar that drops in just below it. */
+.bpm-band-picker {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: -4px 0 10px;
+    padding: 8px 10px;
+    background: #0d1418;
+    border: 1px solid #1c2a30;
+    border-radius: 6px;
+}
+
+.bpm-band-picker.hidden {
+    display: none;
+}
+
+.bpm-band-opt {
+    background: #1a1a1a;
+    border: 1px solid #2a2a2a;
+    color: #aac;
+    font-variant-numeric: tabular-nums;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: rgba(102, 221, 255, 0.3);
+    transition: all 0.12s;
+}
+
+.bpm-band-opt:active { transform: scale(0.95); }
+
+.bpm-band-opt.active {
+    background: #002233;
+    border-color: #66ddff;
+    color: #66ddff;
+    box-shadow: 0 0 6px rgba(102, 221, 255, 0.55);
+}
+
+/* Per-clip BPM badge — sits next to the timecode in the meta row. Kept
+   small and gray so it never visually competes with the play count or
+   tag pills; tabular-nums so the number doesn't shift width. */
+.clip-bpm {
+    display: inline-block;
+    margin-left: 8px;
+    padding: 1px 6px;
+    border-radius: 8px;
+    background: #112025;
+    border: 1px solid #1c2a30;
+    color: #88aabb;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    font-variant-numeric: tabular-nums;
+    vertical-align: middle;
+}
+
+/* ── Per-clip star, tag pills, play badge ─────────────────────────── */
+
+.clip-meta-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.clip-meta-row .clip-name {
+    flex: 1;
+    min-width: 0;
+}
+
+/* Star button (right edge of clip-meta row) — Spotify-heart vibe.
+   Empty = thin grey outline; on = solid amber, glowing. */
+.clip-star {
+    background: transparent;
+    border: none;
+    color: #444;
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 3px;
+    -webkit-tap-highlight-color: rgba(255, 204, 0, 0.4);
+    transition: color 0.12s, transform 0.08s, text-shadow 0.12s;
+}
+
+.clip-star:active { transform: scale(1.25); }
+
+.clip-star.on {
+    color: #ffcc00;
+    text-shadow: 0 0 6px rgba(255, 204, 0, 0.85);
+}
+
+/* Star + 🔥 badges layered on the thumbnail tile */
+.clip-star-badge {
+    position: absolute;
+    top: 1px;
+    right: 2px;
+    color: #ffcc00;
+    font-size: 12px;
+    text-shadow: 0 0 3px #000, 0 0 4px #000;
+    pointer-events: none;
+}
+
+.clip-play-badge {
+    position: absolute;
+    bottom: 1px;
+    right: 2px;
+    color: #ffaa44;
+    font-size: 9px;
+    font-weight: 600;
+    text-shadow: 0 0 3px #000, 0 0 4px #000;
+    letter-spacing: 0.02em;
+    pointer-events: none;
+}
+
+/* Tag pill row sits under the timecode */
+.clip-tags-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 4px;
+    align-items: center;
+}
+
+.clip-tag-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    background: #001a26;
+    border: 1px solid #003a55;
+    color: #00aaff;
+    padding: 2px 6px 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    letter-spacing: 0.02em;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
+.clip-tag-remove {
+    background: transparent;
+    border: none;
+    color: #557788;
+    font-size: 13px;
+    line-height: 1;
+    padding: 0 2px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: rgba(255, 0, 0, 0.4);
+}
+
+.clip-tag-remove:active { color: #ff5555; }
+
+.clip-tag-add {
+    background: transparent;
+    border: 1px dashed #333;
+    color: #555;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    -webkit-tap-highlight-color: rgba(0, 170, 255, 0.4);
+    transition: all 0.12s;
+}
+
+.clip-tag-add:hover, .clip-tag-add:active {
+    border-color: #00aaff;
+    color: #00aaff;
+}
+
+.clip-tag-input {
+    background: #0a1a22;
+    border: 1px solid #00aaff;
+    color: #fff;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    width: 100px;
+    outline: none;
+    -webkit-user-select: text;
+    user-select: text;
+}
+
+.clip-tag-input::placeholder { color: #335566; }
+
+/* Starred row gets a faint amber side-stripe so the whole list
+   still scans at-a-glance for favourites even when sort != 'star'. */
+#clips-list li.clip-row.clip-starred {
+    border-left: 2px solid rgba(255, 204, 0, 0.55);
+    background: linear-gradient(90deg, rgba(255, 204, 0, 0.05), transparent 30%);
+}
+
+/* ── Crossfade panel ─────────────────────────────────────────────── */
+
+#crossfade-panel {
+    grid-column: 1 / -1;
+}
+
+.xfade-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+    gap: 12px;
+}
+
+.xfade-header h2 {
+    margin-bottom: 0;
+}
+
+.xfade-status {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    padding: 3px 10px;
+    border-radius: 4px;
+    background: #2a2a2a;
+    color: #888;
+    text-transform: uppercase;
+}
+
+.xfade-status.xfade-live-on {
+    background: #00ff88;
+    color: #000;
+    box-shadow: 0 0 8px rgba(0, 255, 136, 0.5);
+}
+
+.xfade-status.xfade-blend {
+    background: #ff00aa;
+    color: #fff;
+    box-shadow: 0 0 8px rgba(255, 0, 170, 0.6);
+    animation: xfade-blend-pulse 1.2s ease-in-out infinite;
+}
+
+.xfade-status.xfade-preview-on {
+    background: #00aaff;
+    color: #000;
+    box-shadow: 0 0 8px rgba(0, 170, 255, 0.5);
+}
+
+@keyframes xfade-blend-pulse {
+    0%, 100% { box-shadow: 0 0 6px rgba(255, 0, 170, 0.4); }
+    50%      { box-shadow: 0 0 14px rgba(255, 0, 170, 0.85); }
+}
+
+.xfade-decks {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 10px;
+}
+
+.xfade-side {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: 1px solid #2a2a2a;
+    min-width: 0;
+}
+
+.xfade-live-side {
+    background: rgba(0, 255, 136, 0.05);
+    border-color: rgba(0, 255, 136, 0.25);
+}
+
+.xfade-preview-side {
+    background: rgba(0, 170, 255, 0.05);
+    border-color: rgba(0, 170, 255, 0.25);
+    text-align: right;
+}
+
+.xfade-label {
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    color: #666;
+    font-weight: 600;
+}
+
+.xfade-live-side .xfade-label { color: #00ff88; }
+.xfade-preview-side .xfade-label { color: #00aaff; }
+
+.xfade-name {
+    font-size: 13px;
+    color: #fff;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}
+
+.xfade-name.xfade-empty {
+    color: #555;
+    font-style: italic;
+}
+
+/* (.xfade-track / .xfade-fill-* / .xfade-thumb / .xfade-meta /
+   #xfade-pct-* deleted in iPad audit 2026-05-16 — the S2 fader IS
+   the bar. Status badge + names carry the meaning.) */
+
+/* ── Decks (launchpad) ───────────────────────────────────────────── */
+
+#decks-panel {
+    grid-column: 1 / -1;
+}
+
+.decks-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 12px;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.decks-header h2 {
+    margin-bottom: 0;
+}
+
+.decks-hint {
+    font-size: 11px;
+    color: #555;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.decks-hint.armed {
+    color: #00ff88;
+    text-shadow: 0 0 6px rgba(0, 255, 136, 0.6);
+}
+
+.deck-grid {
+    display: grid;
+    /* 4 across instead of 2x2 — about half the per-tile size */
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+}
+
+.deck-slot {
+    position: relative;
+    background: #0a0a0a;
+    border: 2px solid #2a2a2a;
+    border-radius: 10px;
+    overflow: hidden;
+    aspect-ratio: 16 / 9;
+    cursor: pointer;
+    -webkit-tap-highlight-color: rgba(0, 255, 136, 0.2);
+    transition: border-color 0.15s, box-shadow 0.15s, transform 0.08s;
+}
+
+.deck-slot:active {
+    transform: scale(0.985);
+}
+
+/* Live MJPEG preview: the <img> tag is fed by /preview/<n>.mjpg, a
+   multipart/x-mixed-replace stream that Safari swaps in-place at ~5 fps.
+   Sized to fill the slot; object-fit: cover keeps the aspect right
+   even though ffmpeg already scales to 320x180. */
+.deck-stream {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    background: #000;
+    display: block;
+    image-rendering: -webkit-optimize-contrast;
+}
+
+/* Hidden when the stream's onerror swaps in a placeholder. The .broken
+   class is added by control.js so we can fall back gracefully if the
+   ffmpeg pipeline isn't running (no NVDEC, file gone, etc). */
+.deck-stream.broken {
+    display: none;
+}
+
+/* Diagonal-hatch placeholder for empty slots, also used by .deck-stream
+   .broken fallback so users see SOMETHING when the live feed dies. */
+.deck-placeholder {
+    position: absolute;
+    inset: 0;
+    background:
+        repeating-linear-gradient(
+            45deg,
+            #111 0 8px,
+            #0a0a0a 8px 16px
+        );
+}
+
+/* When a stream is live + the iPad has connected, paint a soft pink
+   pulse-ring INSET around the slot so the user knows it's a live feed
+   (not a static thumbnail). Matches the hot-pink the .live deck class
+   uses for "this is the source of the live player". */
+.deck-slot.streaming::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 8px;
+    pointer-events: none;
+    box-shadow: inset 0 0 0 1px rgba(255, 0, 170, 0.45);
+    animation: deck-stream-pulse 2.2s ease-in-out infinite;
+}
+
+@keyframes deck-stream-pulse {
+    0%, 100% { box-shadow: inset 0 0 0 1px rgba(255, 0, 170, 0.35); }
+    50%      { box-shadow: inset 0 0 0 1px rgba(255, 0, 170, 0.85),
+                           inset 0 0 14px rgba(255, 0, 170, 0.25); }
+}
+
+/* Tiny "LIVE" dot in the bottom-left, mirrors broadcast convention.
+   Hidden when the stream <img> is broken or the slot is empty. */
+.deck-live-dot {
+    position: absolute;
+    bottom: 6px;
+    left: 8px;
+    background: rgba(0, 0, 0, 0.7);
+    color: #ff66bb;
+    font-weight: 700;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    padding: 2px 6px 2px 14px;
+    border-radius: 3px;
+    pointer-events: none;
+    text-shadow: 0 0 4px rgba(255, 0, 170, 0.6);
+}
+.deck-live-dot::before {
+    content: "";
+    position: absolute;
+    left: 5px;
+    top: 50%;
+    width: 6px;
+    height: 6px;
+    margin-top: -3px;
+    background: #ff3399;
+    border-radius: 50%;
+    box-shadow: 0 0 6px rgba(255, 51, 153, 0.9);
+    animation: deck-live-blink 1.1s ease-in-out infinite;
+}
+@keyframes deck-live-blink {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.35; }
+}
+
+/* Slot number badge (top-left), launchpad style */
+.deck-badge {
+    position: absolute;
+    top: 6px;
+    left: 8px;
+    background: rgba(0, 0, 0, 0.65);
+    color: #00ff88;
+    font-weight: 700;
+    font-size: 13px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    text-shadow: 0 0 4px rgba(0, 255, 136, 0.6);
+    pointer-events: none;
+}
+
+.deck-name {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(transparent, rgba(0, 0, 0, 0.85) 60%);
+    padding: 18px 8px 6px;
+    color: #fff;
+    font-size: 12px;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    pointer-events: none;
+}
+
+.deck-slot.empty .deck-name {
+    background: none;
+    color: #444;
+    font-style: italic;
+    text-align: center;
+    animation: deck-empty-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes deck-empty-pulse {
+    0%, 100% { opacity: 0.55; }
+    50%      { opacity: 0.95; }
+}
+
+/* "GO" button — shows on filled slots, top-right corner */
+.deck-go {
+    position: absolute;
+    top: 6px;
+    right: 8px;
+    background: #00ff88;
+    color: #000;
+    font-weight: 800;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    padding: 3px 10px;
+    border-radius: 4px;
+    box-shadow: 0 0 10px rgba(0, 255, 136, 0.55);
+    border: none;
+    cursor: pointer;
+    -webkit-tap-highlight-color: rgba(0, 255, 136, 0.4);
+}
+
+.deck-go:active { transform: scale(0.92); }
+
+/* Tiny "X" clear button (bottom-right). Shown on filled slots only. */
+.deck-clear {
+    position: absolute;
+    bottom: 6px;
+    right: 8px;
+    background: rgba(0, 0, 0, 0.7);
+    color: #aaa;
+    border: 1px solid #333;
+    width: 22px;
+    height: 22px;
+    line-height: 18px;
+    text-align: center;
+    border-radius: 50%;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    -webkit-tap-highlight-color: rgba(255, 0, 0, 0.4);
+}
+
+.deck-clear:hover { color: #ff5555; border-color: #ff5555; }
+.deck-clear:active { background: #330000; }
+
+/* Selected (target for next clip-tap) — pulsing green border */
+.deck-slot.selected {
+    border-color: #00ff88;
+    box-shadow:
+        0 0 0 1px rgba(0, 255, 136, 0.6),
+        0 0 18px rgba(0, 255, 136, 0.55);
+    animation: deck-select-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes deck-select-pulse {
+    0%, 100% { box-shadow: 0 0 0 1px rgba(0, 255, 136, 0.55), 0 0 14px rgba(0, 255, 136, 0.45); }
+    50%      { box-shadow: 0 0 0 1px rgba(0, 255, 136, 0.9),  0 0 24px rgba(0, 255, 136, 0.85); }
+}
+
+/* Just fired — quick green flash */
+.deck-slot.firing {
+    border-color: #00ff88;
+    box-shadow: 0 0 24px #00ff88, inset 0 0 24px rgba(0, 255, 136, 0.4);
+}
+
+/* Currently playing this slot's source */
+.deck-slot.live {
+    border-color: #ff00aa;
+    box-shadow: 0 0 18px rgba(255, 0, 170, 0.5);
+}
+
+/* (#status-panel / #status-message deleted in iPad audit 2026-05-16 —
+   toast nobody read. setStatus() in control.js is now a console.debug
+   shim so existing call sites keep compiling.) */
+
+/* ── Channels (saved library-folder presets) ───────────────────────── */
+
+#channels-panel {
+    grid-column: 1 / -1;
+}
+
+.channels-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+}
+
+.channels-header h2 { margin-bottom: 0; }
+
+.channels-hint {
+    font-size: 11px;
+    color: #555;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.channels-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+}
+
+/* Each chip uses --ch-color (set inline by JS) for both the top tab AND
+   the active glow. Stays muted when idle; lights up to "tape-deck preset
+   selected" when active. The :active transform gives the tap that
+   satisfying physical click feel. */
+.channel-chip {
+    position: relative;
+    background: #0f0f0f;
+    border: 1px solid #2a2a2a;
+    border-top: 4px solid var(--ch-color, #444);
+    border-radius: 6px;
+    padding: 10px 8px 8px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: rgba(255, 255, 255, 0.1);
+    transition: border-color 0.15s, box-shadow 0.15s, transform 0.08s, background 0.15s;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.channel-chip:active { transform: scale(0.97); }
+
+.channel-chip .ch-num {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    color: var(--ch-color, #888);
+    text-transform: uppercase;
+}
+
+.channel-chip .ch-name {
+    font-size: 14px;
+    color: #eee;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+}
+
+.channel-chip .ch-folder {
+    font-size: 10px;
+    color: #777;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-style: italic;
+    min-width: 0;
+}
+
+.channel-chip .ch-folder.empty { color: #555; }
+
+.channel-chip .ch-tag {
+    font-size: 10px;
+    color: var(--ch-color, #888);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    opacity: 0.85;
+}
+
+/* Gear icon — tap target lives in the corner so it doesn't fight with
+   the main tap-to-switch action. */
+.channel-chip .ch-edit {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    background: rgba(0, 0, 0, 0.4);
+    border: none;
+    color: #888;
+    font-size: 14px;
+    line-height: 1;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    -webkit-tap-highlight-color: rgba(255, 255, 255, 0.2);
+}
+
+.channel-chip .ch-edit:hover,
+.channel-chip .ch-edit:active {
+    color: var(--ch-color, #fff);
+    background: rgba(0, 0, 0, 0.7);
+}
+
+/* Active state: chip glows in its own color + ring, like the tape-deck
+   preset button being depressed. */
+.channel-chip.active {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent);
+    border-color: var(--ch-color, #fff);
+    box-shadow:
+        0 0 0 1px var(--ch-color, #fff),
+        0 0 18px color-mix(in srgb, var(--ch-color, #fff) 50%, transparent);
+    animation: channel-active-pulse 2.4s ease-in-out infinite;
+}
+
+.channel-chip.active .ch-name { color: #fff; }
+
+@keyframes channel-active-pulse {
+    0%, 100% { box-shadow: 0 0 0 1px var(--ch-color, #fff), 0 0 14px color-mix(in srgb, var(--ch-color, #fff) 35%, transparent); }
+    50%      { box-shadow: 0 0 0 1px var(--ch-color, #fff), 0 0 24px color-mix(in srgb, var(--ch-color, #fff) 75%, transparent); }
+}
+
+/* ── Channel inline editor ─────────────────────────────────────────── */
+
+.channel-editor {
+    margin-top: 12px;
+    background: #0d0d0d;
+    border: 1px solid var(--ch-color, #333);
+    border-radius: 8px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.channel-editor.hidden { display: none; }
+
+.ce-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    border-bottom: 1px solid #1f1f1f;
+    padding-bottom: 8px;
+}
+
+.ce-title {
+    font-size: 12px;
+    color: #aaa;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.ce-title #ce-num { color: var(--ch-color, #fff); font-weight: 700; }
+
+.ce-close {
+    background: transparent;
+    border: 1px solid #2a2a2a;
+    color: #888;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    -webkit-tap-highlight-color: rgba(255, 255, 255, 0.2);
+}
+
+.ce-close:active { background: #1f1f1f; color: #fff; }
+
+.ce-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.ce-label {
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #777;
+}
+
+.ce-field input[type="text"] {
+    width: 100%;
+    background: #050505;
+    border: 1px solid #2a2a2a;
+    color: #eee;
+    font-size: 14px;
+    padding: 8px 10px;
+    border-radius: 4px;
+    outline: none;
+    -webkit-appearance: none;
+    appearance: none;
+    -webkit-user-select: text;
+    user-select: text;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    font-family: inherit;
+}
+
+.ce-field input[type="text"]:focus {
+    border-color: var(--ch-color, #00ff88);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--ch-color, #00ff88) 40%, transparent);
+}
+
+.ce-swatches {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.ce-swatch {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 2px solid #1a1a1a;
+    cursor: pointer;
+    -webkit-tap-highlight-color: rgba(255, 255, 255, 0.3);
+    transition: transform 0.08s, border-color 0.15s;
+}
+
+.ce-swatch:active { transform: scale(0.85); }
+
+.ce-swatch.selected {
+    border-color: #fff;
+    box-shadow: 0 0 8px rgba(255, 255, 255, 0.6);
+}
+
+.ce-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.ce-btn {
+    background: #1a1a1a;
+    border: 1px solid #333;
+    color: #ccc;
+    padding: 8px 14px;
+    border-radius: 4px;
+    font-size: 12px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    cursor: pointer;
+    -webkit-tap-highlight-color: rgba(255, 255, 255, 0.1);
+    font-family: inherit;
+}
+
+.ce-btn:active { transform: scale(0.97); }
+.ce-btn.ce-cancel:hover, .ce-btn.ce-cancel:active { background: #2a2a2a; }
+.ce-btn.ce-save {
+    background: var(--ch-color, #00ff88);
+    color: #000;
+    font-weight: 700;
+    border-color: var(--ch-color, #00ff88);
+}
+.ce-btn.ce-use-current {
+    background: transparent;
+    border-style: dashed;
+    border-color: #444;
+    color: #888;
+    align-self: flex-start;
+}
+.ce-btn.ce-use-current:hover, .ce-btn.ce-use-current:active {
+    border-color: var(--ch-color, #00ff88);
+    color: var(--ch-color, #00ff88);
+}
+
+/* On phones: chips wrap to 2x2 if 4-across is too cramped. */
+@media (max-width: 600px) {
+    .channels-row { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* ── Library browser ─────────────────────────────────────────────── */
+
+#library-panel {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-direction: column;
+    /* Cap height so the full-width panel doesn't push everything else
+       below the fold on iPad portrait. List scrolls inside. */
+    max-height: 520px;
+    /* Promoted-to-top (2026-05-19): subtle amber accent strip so the
+       Library reads as the "primary discovery surface" the user wants. */
+    border-left: 4px solid #f59e0b;
+    padding-left: 12px;
+}
+
+.library-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+}
+
+.library-header h2 {
+    margin-bottom: 0;
+    font-size: 22px;     /* was inherited 18px — promoted prominence */
+    letter-spacing: 0.04em;
+    color: #fde68a;      /* warm amber to match the accent strip */
+}
+
+.library-breadcrumb {
+    flex: 1;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    font-size: 13px;
+    color: #888;
+    min-width: 0;
+}
+
+.library-shortcuts {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+/* Smart playlists chip row */
+.smart-playlists-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    padding: 4px 0;
+}
+.smart-pl-save-btn {
+    background: #232323;
+    color: #aaa;
+    border: 1px dashed #444;
+    border-radius: 11px;
+    padding: 3px 9px;
+    font-size: 11px;
+    cursor: pointer;
+}
+.smart-pl-save-btn:hover { color: #00ff88; border-color: #00ff88; }
+.smart-pl-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: #1c1f2c;
+    color: #aac;
+    border: 1px solid #2c2c4c;
+    border-radius: 11px;
+    padding: 3px 9px;
+    font-size: 11px;
+    cursor: pointer;
+}
+.smart-pl-chip:hover { background: #232336; }
+.smart-pl-chip .spl-del {
+    background: none;
+    border: none;
+    color: #555;
+    font-size: 12px;
+    cursor: pointer;
+    padding: 0 2px;
+}
+.smart-pl-chip .spl-del:hover { color: #ff4444; }
+
+/* Path-tag filter chips above the library list */
+.path-tags-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    padding: 4px 0 10px 0;
+    max-height: 80px;
+    overflow-y: auto;
+}
+/* Auto-bank A-H row -- one-tap "shuffle current filter into 8 banks". */
+.auto-bank-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 4px 0 8px 0;
+}
+.auto-bank-btn {
+    background: #1a3a5a;
+    color: #b0e0ff;
+    border: 1px solid #2a5a8a;
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    user-select: none;
+    transition: background 120ms ease, color 120ms ease,
+                border-color 120ms ease, box-shadow 120ms ease;
+    min-width: 130px;
+    text-align: center;
+}
+.auto-bank-btn:hover {
+    background: #2a5a8a;
+    color: #fff;
+    box-shadow: 0 0 12px rgba(80, 180, 255, 0.4);
+}
+.auto-bank-btn:active {
+    background: #3a7aaa;
+}
+.auto-bank-btn:disabled {
+    opacity: 0.6;
+    cursor: wait;
+}
+.auto-bank-hint {
+    color: #777;
+    font-size: 11px;
+    font-style: italic;
+}
+.tag-search-input {
+    background: #0e0e0e;
+    color: #ddd;
+    border: 1px solid #2c2c2c;
+    border-radius: 6px;
+    padding: 7px 10px;
+    font-size: 13px;
+    flex: 1;
+    min-width: 220px;
+    max-width: 380px;
+    outline: none;
+    transition: border-color 100ms ease, background 100ms ease;
+}
+.tag-search-input:focus {
+    border-color: #4080ff;
+    background: #161616;
+}
+.tag-search-input::placeholder {
+    color: #555;
+    font-style: italic;
+}
+.tag-search-results {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 0 0 8px 0;
+}
+.tag-search-hit {
+    background: #2a2a2a;
+    color: #ccc;
+    border: 1px solid #3a3a3a;
+    border-radius: 11px;
+    padding: 3px 9px;
+    font-size: 11px;
+    cursor: pointer;
+    user-select: none;
+}
+.tag-search-hit:hover {
+    background: #1a3a5a;
+    color: #fff;
+    border-color: #2a5a8a;
+}
+.tag-search-hit .tsh-count {
+    color: #888;
+    margin-left: 4px;
+    font-size: 10px;
+}
+.tag-search-empty {
+    color: #666;
+    font-size: 11px;
+    font-style: italic;
+}
+.path-tag-chip {
+    background: #1f1f1f;
+    color: #aaa;
+    border: 1px solid #2c2c2c;
+    border-radius: 11px;
+    padding: 3px 9px;
+    font-size: 11px;
+    cursor: pointer;
+    user-select: none;
+    transition: background 80ms ease, color 80ms ease, border-color 80ms ease;
+}
+.path-tag-chip:hover {
+    background: #2a2a2a;
+    color: #ddd;
+}
+.path-tag-chip.active {
+    background: #00aa66;
+    color: #000;
+    border-color: #00ff88;
+    font-weight: 600;
+}
+.path-tag-chip .pt-count {
+    color: #666;
+    margin-left: 4px;
+    font-size: 10px;
+}
+.path-tag-chip.active .pt-count {
+    color: #003322;
+}
+.library-shortcut-btn {
+    background: #232323;
+    color: #ddd;
+    border: 1px solid #333;
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 80ms ease, border-color 80ms ease;
+}
+.library-shortcut-btn:hover {
+    background: #2a2a2a;
+    border-color: #555;
+}
+.library-shortcut-btn:active {
+    background: #00ff88;
+    color: #000;
+}
+.library-shortcut-back {
+    color: #888;
+}
+.library-shortcut-btn.hidden {
+    display: none;
+}
+
+.crumb {
+    color: #00ff88;
+    padding: 4px 8px;
+    border-radius: 4px;
+    background: #102018;
+    cursor: pointer;
+    -webkit-tap-highlight-color: rgba(0, 255, 136, 0.3);
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.crumb:active { background: #003322; }
+.crumb.current { color: #888; background: transparent; cursor: default; }
+.crumb-sep { color: #444; font-size: 12px; }
+
+/* Search box: sits between the breadcrumb and the file list. */
+.library-search {
+    position: relative;
+    margin-bottom: 8px;
+}
+
+.library-search input[type="search"] {
+    width: 100%;
+    background: #0d0d0d;
+    border: 1px solid #2a2a2a;
+    color: #e0e0e0;
+    font-size: 14px;
+    padding: 10px 36px 10px 12px;
+    border-radius: 6px;
+    outline: none;
+    -webkit-appearance: none;
+    appearance: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    /* Allow text selection inside the box (the global * rule disables it) */
+    -webkit-user-select: text;
+    user-select: text;
+}
+
+.library-search input[type="search"]::placeholder { color: #555; }
+
+.library-search input[type="search"]:focus {
+    border-color: #00ff88;
+    box-shadow: 0 0 0 1px rgba(0, 255, 136, 0.4);
+}
+
+/* Hide the native WebKit clear button — we render our own so iPad gets a
+   bigger tap target. */
+.library-search input[type="search"]::-webkit-search-cancel-button {
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.library-search-clear {
+    position: absolute;
+    top: 50%;
+    right: 6px;
+    transform: translateY(-50%);
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: none;
+    background: #2a2a2a;
+    color: #aaa;
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    -webkit-tap-highlight-color: rgba(0, 255, 136, 0.3);
+}
+.library-search-clear:active { background: #003322; color: #00ff88; }
+.library-search-clear.hidden { display: none; }
+
+.library-list {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    border-top: 1px solid #2a2a2a;
+    /* Subtle inner shadow telegraphs that the list scrolls. */
+    box-shadow: inset 0 8px 8px -8px rgba(0, 0, 0, 0.6);
+}
+
+.lib-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 12px;
+    border-bottom: 1px solid #1f1f1f;
+    cursor: pointer;
+    -webkit-tap-highlight-color: rgba(0, 255, 136, 0.2);
+    transition: background 0.1s;
+    font-size: 15px;
+    color: #ddd;
+}
+
+.lib-row:active { background: #1a2a22; }
+
+.lib-row .lib-icon {
+    flex: 0 0 auto;
+    width: 22px;
+    text-align: center;
+    color: #666;
+    font-size: 14px;
+}
+
+/* Per-file thumbnail tile (16:9, smaller than clip thumbs to keep the
+   list dense). The placeholder stays visible until the lazy-loaded
+   <img> reports `loaded`, so empty cache slots don't show as black gaps. */
+.lib-thumb-wrap {
+    position: relative;
+    flex: 0 0 auto;
+    width: 50px;
+    height: 28px;
+    background: linear-gradient(135deg, #1a1a1a, #050505);
+    border: 1px solid #2a2a2a;
+    border-radius: 3px;
+    overflow: hidden;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+.lib-thumb-wrap .lib-thumb {
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: cover;
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+
+.lib-thumb-wrap .lib-thumb.loaded { opacity: 1; }
+
+.lib-thumb-placeholder {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #2f2f2f;
+    font-size: 14px;
+    pointer-events: none;
+}
+
+/* Folder rows still use the emoji — no thumb wrapper there. */
+.lib-row.lib-folder .lib-icon { color: #ffaa00; }
+.lib-row.lib-up .lib-icon { color: #aaa; }
+
+.lib-row .lib-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.lib-row .lib-tag {
+    flex: 0 0 auto;
+    font-size: 11px;
+    color: #555;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+/* Per-folder BANK button: navigate into folder + auto-split to A-H
+   in one tap. Lives between the folder name and the FOLDER tag. */
+.lib-row.lib-folder .lib-folder-bank {
+    flex: 0 0 auto;
+    background: #1a3a5a;
+    color: #b0e0ff;
+    border: 1px solid #2a5a8a;
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    margin-right: 10px;
+    cursor: pointer;
+    user-select: none;
+    transition: background 100ms ease, color 100ms ease;
+    min-width: 52px;
+    text-align: center;
+}
+.lib-row.lib-folder .lib-folder-bank:hover {
+    background: #2a5a8a;
+    color: #fff;
+}
+.lib-row.lib-folder .lib-folder-bank:active {
+    background: #3a7aaa;
+}
+.lib-row.lib-folder .lib-folder-bank:disabled {
+    opacity: 0.6;
+    cursor: wait;
+}
+
+.lib-row.lib-up { color: #aaa; font-weight: 500; }
+.lib-row.lib-folder .lib-icon { color: #ffaa00; }
+.lib-row.lib-file .lib-icon { color: #00aaff; }
+
+/* Currently-playing file: solid green flag, like Spotify's now-playing row. */
+.lib-row.lib-current {
+    background: #00321f;
+    color: #00ff88;
+}
+.lib-row.lib-current .lib-icon,
+.lib-row.lib-current .lib-tag { color: #00ff88; }
+
+/* Tap-to-load loading state: pulsing tint until the player confirms. */
+.lib-row.lib-loading {
+    background: #1a2a22;
+    color: #ffaa00;
+    animation: lib-pulse 0.8s ease-in-out infinite;
+}
+.lib-row.lib-loading .lib-icon { color: #ffaa00; }
+
+/* S2 browse-encoder cursor highlight */
+.lib-row.lib-selected {
+    background: #002a3a;
+    border-left: 3px solid #00aaff;
+    color: #00aaff;
+}
+.lib-row.lib-selected .lib-icon,
+.lib-row.lib-selected .lib-tag { color: #00aaff; }
+@keyframes lib-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.55; }
+}
+
+.library-empty {
+    padding: 24px 12px;
+    text-align: center;
+    color: #555;
+    font-style: italic;
+    font-size: 13px;
+}
+
+@media (max-width: 600px) {
+    main { grid-template-columns: 1fr; }
+    #library-panel { max-height: 60vh; }
+    .crumb { max-width: 140px; }
+}
+
+/* ── Analytics panel ────────────────────────────────────────────────
+   Read-only stats from analytics.py. Matches the existing dark-theme
+   aesthetic: #1a1a1a panel bg already inherited from .panel, #00ff88
+   accents for live numbers, 11-12px chip-style sub-fonts. Grouped into
+   four blocks: today / top-10 / bpm-histogram / disk. */
+/* The header is a <summary> now (audit 2026-05-16) — wrap the analytics
+   block in <details> so it collapses by default. Tap the header to expand. */
+#analytics-details {
+    /* no extra chrome — let the .panel border do the work */
+}
+#analytics-details > summary {
+    cursor: pointer;
+    list-style: none;            /* hide default disclosure triangle */
+    -webkit-tap-highlight-color: rgba(0, 255, 136, 0.2);
+}
+#analytics-details > summary::-webkit-details-marker { display: none; }
+#analytics-details > summary::after {
+    content: '▸';
+    color: #555;
+    margin-left: auto;
+    font-size: 14px;
+    transition: transform 0.15s;
+    display: inline-block;
+}
+#analytics-details[open] > summary::after {
+    transform: rotate(90deg);
+    color: #00ff88;
+}
+
+#analytics-panel .analytics-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+.analytics-refresh-btn {
+    background: #232323;
+    color: #ddd;
+    border: 1px solid #333;
+    border-radius: 6px;
+    padding: 5px 10px;
+    font-size: 11px;
+    font-family: inherit;
+    cursor: pointer;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+.analytics-refresh-btn:hover { border-color: #00ff88; color: #00ff88; }
+.analytics-refresh-btn:active { background: #1a2a22; }
+
+.analytics-block {
+    background: #121212;
+    border: 1px solid #2a2a2a;
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin-bottom: 10px;
+}
+.analytics-block:last-child { margin-bottom: 0; }
+.analytics-block-title {
+    font-size: 11px;
+    color: #888;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+}
+.analytics-empty {
+    font-size: 12px;
+    color: #555;
+    font-style: italic;
+    list-style: none;
+}
+
+/* Today: four big counters in a row. Numbers in accent green, labels
+   in dim grey under them. Wraps on narrow viewports. */
+.analytics-today-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+}
+.analytics-counter {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    min-width: 56px;
+}
+.analytics-counter-val {
+    font-size: 22px;
+    font-weight: 600;
+    color: #00ff88;
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+}
+.analytics-counter-label {
+    font-size: 11px;
+    color: #777;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-top: 2px;
+}
+
+/* Top-10 list: rank | name | count chip on the right. */
+.analytics-top-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.analytics-top-clip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 6px;
+    background: #1a1a1a;
+    border: 1px solid #262626;
+    border-radius: 5px;
+    font-size: 12px;
+}
+.analytics-top-clip .atc-rank {
+    color: #555;
+    font-size: 11px;
+    min-width: 18px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+.analytics-top-clip .atc-name {
+    flex: 1 1 auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #ddd;
+}
+.analytics-top-clip .atc-bpm {
+    color: #888;
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    min-width: 32px;
+    text-align: right;
+}
+.analytics-top-clip .atc-count {
+    background: #002a1a;
+    color: #00ff88;
+    border: 1px solid #00ff88;
+    border-radius: 10px;
+    padding: 1px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    min-width: 28px;
+    text-align: center;
+}
+
+/* BPM histogram: each row = one band, label on left, horizontal bar
+   filling from 0 to max-count, count on right. */
+.analytics-bars {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+.analytics-row {
+    display: grid;
+    grid-template-columns: 64px 1fr 32px;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+}
+.analytics-row .ar-label {
+    color: #999;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.03em;
+}
+.analytics-row .ar-bar-bg {
+    background: #1a1a1a;
+    border: 1px solid #262626;
+    border-radius: 4px;
+    height: 14px;
+    overflow: hidden;
+}
+.analytics-bar {
+    background: linear-gradient(90deg, #007a44 0%, #00ff88 100%);
+    height: 100%;
+    width: 0%;
+    transition: width 0.25s ease-out;
+}
+.analytics-bar.empty {
+    background: #232323;
+}
+.analytics-row .ar-count {
+    color: #ddd;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Disk usage: single line, "Proxies 142.3 MB / Thumbs 8.1 MB / 217 files". */
+.analytics-disk-line {
+    font-size: 12px;
+    color: #bbb;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.5;
+}
+.analytics-disk-line .adl-num {
+    color: #00ff88;
+    font-weight: 600;
+}
+.analytics-disk-line .adl-sep {
+    color: #444;
+    margin: 0 6px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   iPad ergonomic redesign (2026-05-18) — promote the actions hit
+   most often (ARC, AUTO-BANK, tag search) to thumb-reachable real
+   estate, collapse low-frequency panels behind <details>, shrink
+   the monitor preview so banks rise above the fold.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ARC tile — pinned to the top-right of the status strip. Visible
+   from across the room thanks to large size + phase color. */
+.status-strip { position: relative; }
+.ss-arc-tile {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 96px;
+    height: 60px;
+    border-radius: 10px;
+    border: 1px solid #2c2c2c;
+    background: #1a1a1a;
+    color: #555;
+    font-family: 'Barlow Condensed', system-ui, sans-serif;
+    font-weight: 800;
+    font-size: 18px;
+    letter-spacing: 0.08em;
+    line-height: 1.1;
+    text-align: center;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+    z-index: 10;
+    transition: background 140ms ease, color 140ms ease,
+                box-shadow 140ms ease, transform 80ms ease;
+}
+.ss-arc-tile.ss-arc-off { background: #1a1a1a; color: #555; }
+.ss-arc-tile:active { transform: translateY(1px); }
+/* Color set inline from JS when set-arc is enabled */
+
+/* Quick-fire bar pinned under the status strip. Big touch targets
+   so the type-and-bank one-action path is the second-most-visible
+   control on the page. */
+.quick-fire-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: #0c0c0c;
+    border-bottom: 1px solid #1f1f1f;
+    position: sticky;
+    top: 0;
+    z-index: 9;
+}
+.quick-fire-bar .qf-input {
+    flex: 1;
+    height: 44px;
+    background: #161616;
+    color: #e8e8e8;
+    border: 1px solid #2c2c2c;
+    border-radius: 8px;
+    padding: 0 14px;
+    font-size: 15px;
+    font-weight: 500;
+    outline: none;
+    transition: border-color 120ms ease, background 120ms ease;
+    min-width: 0;
+}
+.quick-fire-bar .qf-input:focus {
+    border-color: #3b82f6;
+    background: #1a1a1a;
+}
+.quick-fire-bar .qf-input::placeholder {
+    color: #555;
+    font-style: italic;
+}
+.quick-fire-bar .qf-bank-btn {
+    flex: 0 0 auto;
+    height: 44px;
+    min-width: 168px;
+    background: #2563eb;
+    color: #fff;
+    border: 1px solid #3b82f6;
+    border-radius: 8px;
+    padding: 0 18px;
+    font-size: 14px;
+    font-weight: 800;
+    letter-spacing: 0.6px;
+    cursor: pointer;
+    user-select: none;
+    transition: background 100ms ease, box-shadow 100ms ease;
+}
+.quick-fire-bar .qf-bank-btn:hover {
+    background: #3b82f6;
+    box-shadow: 0 0 14px rgba(59, 130, 246, 0.45);
+}
+.quick-fire-bar .qf-bank-btn:active { transform: translateY(1px); }
+.quick-fire-bar .qf-bank-btn:disabled { opacity: 0.6; cursor: wait; }
+/* OPENERS variant — purple, distinct from the blue AUTO-BANK, since
+   it builds banks from intro-tagged opener clips specifically. */
+.quick-fire-bar .qf-openers-btn {
+    background: #7c3aed;
+    border-color: #8b5cf6;
+    min-width: 132px;
+}
+.quick-fire-bar .qf-openers-btn:hover {
+    background: #8b5cf6;
+    box-shadow: 0 0 14px rgba(139, 92, 246, 0.45);
+}
+.quick-fire-bar .qf-hint {
+    color: #666;
+    font-size: 11px;
+    font-style: italic;
+    flex: 0 0 auto;
+    max-width: 230px;
+}
+@media (max-width: 720px) {
+    /* On narrow screens drop the hint to keep the bar single-line. */
+    .quick-fire-bar .qf-hint { display: none; }
+}
+.tag-search-results-inline {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 0 14px 8px;
+    background: #0c0c0c;
+}
+
+/* Openers launcher: collapsible row of tap-to-fire opener clips. */
+.openers-bar {
+    background: #0c0c0c;
+    border-bottom: 1px solid #1f1f1f;
+}
+.openers-bar details > summary {
+    list-style: none;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    padding: 10px 14px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.openers-bar details > summary::-webkit-details-marker { display: none; }
+.openers-bar details > summary::after {
+    content: '▸';
+    color: #888;
+    font-size: 13px;
+    margin-left: auto;
+    transition: transform 120ms ease;
+}
+.openers-bar details[open] > summary::after { transform: rotate(90deg); }
+.openers-title {
+    font-family: 'Barlow Condensed', system-ui, sans-serif;
+    font-weight: 800;
+    font-size: 14px;
+    letter-spacing: 0.12em;
+    color: #b0e0ff;
+}
+.openers-count {
+    color: #666;
+    font-size: 12px;
+    font-weight: 600;
+}
+.openers-hint {
+    color: #555;
+    font-size: 11px;
+    font-style: italic;
+}
+.openers-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    padding: 0 12px 6px;
+}
+.op-pill {
+    background: #161616;
+    color: #888;
+    border: 1px solid #2a2a2a;
+    border-radius: 11px;
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    user-select: none;
+    transition: background 100ms ease, color 100ms ease,
+                border-color 100ms ease;
+}
+.op-pill:hover { background: #2a2a2a; color: #ccc; }
+.op-pill.active {
+    background: #1a3a5a;
+    color: #b0e0ff;
+    border-color: #3a7aaa;
+}
+.openers-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 4px 12px 12px;
+    max-height: 260px;
+    overflow-y: auto;
+}
+.openers-empty { color: #555; font-style: italic; padding: 8px 4px; }
+.opener-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    background: #161616;
+    border: 1px solid #262626;
+    border-radius: 6px;
+    color: #ddd;
+    font-size: 13px;
+    cursor: pointer;
+    text-align: left;
+    transition: background 100ms ease, border-color 100ms ease;
+}
+.opener-row:hover {
+    background: #1a3a5a;
+    border-color: #3a7aaa;
+}
+.opener-row.opener-firing {
+    background: #2563eb;
+    color: #fff;
+    border-color: #60a5fa;
+}
+.op-del {
+    flex: 0 0 auto;
+    background: transparent;
+    color: #555;
+    border: 1px solid transparent;
+    border-radius: 50%;
+    width: 26px;
+    height: 26px;
+    line-height: 1;
+    font-size: 16px;
+    cursor: pointer;
+    margin-left: 4px;
+    padding: 0;
+    transition: color 100ms ease, background 100ms ease,
+                border-color 100ms ease;
+}
+.op-del:hover {
+    color: #ff6666;
+    background: #3a1a1a;
+    border-color: #aa2222;
+}
+.op-star { color: #eab308; min-width: 14px; }
+.op-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.op-time {
+    flex: 0 0 auto;
+    font-family: 'Barlow Condensed', monospace;
+    color: #888;
+    font-size: 12px;
+    min-width: 60px;
+    text-align: right;
+}
+.op-tags { flex: 0 0 auto; display: flex; gap: 3px; }
+.op-tag {
+    background: #2a2a2a;
+    color: #aaa;
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 8px;
+}
+
+/* Mark-clip form: lives inside the Openers panel as a nested
+   collapsible. Default closed; expand to mark a new clip without
+   leaving the page. */
+.mark-clip-form {
+    margin: 4px 12px 12px;
+    border: 1px dashed #2a4a6a;
+    border-radius: 8px;
+    background: #0e1620;
+}
+.mark-clip-summary {
+    cursor: pointer;
+    user-select: none;
+    list-style: none;
+    padding: 8px 12px;
+    color: #5a8aba;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+}
+.mark-clip-summary::-webkit-details-marker { display: none; }
+.mark-clip-form[open] .mark-clip-summary { color: #b0e0ff; }
+.mark-clip-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 6px 12px 12px;
+}
+.mc-input {
+    background: #0a0a0a;
+    color: #ddd;
+    border: 1px solid #2a2a2a;
+    border-radius: 6px;
+    padding: 7px 10px;
+    font-size: 13px;
+    outline: none;
+}
+.mc-input:focus { border-color: #3b82f6; background: #161616; }
+.mc-input::placeholder { color: #555; font-style: italic; }
+.mc-row { display: flex; gap: 6px; align-items: center; }
+.mc-num { flex: 1; min-width: 0; }
+.mc-star {
+    flex: 1;
+    color: #aaa;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+}
+.mc-star input { cursor: pointer; }
+.mc-submit {
+    background: #2563eb;
+    color: #fff;
+    border: 1px solid #3b82f6;
+    border-radius: 6px;
+    padding: 8px 16px;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.6px;
+    cursor: pointer;
+    min-width: 120px;
+}
+.mc-submit:hover { background: #3b82f6; }
+.mc-submit:disabled { opacity: 0.5; cursor: wait; }
+.mc-result {
+    color: #888;
+    font-size: 11px;
+    font-family: 'Barlow Condensed', monospace;
+    margin-top: 4px;
+    min-height: 14px;
+}
+
+/* Picker decisions panel: debug view of what the picker just did */
+.picker-panel {
+    margin: 8px 12px;
+    border: 1px solid #2a3a4a;
+    border-radius: 8px;
+    background: #0e1218;
+}
+.picker-summary {
+    cursor: pointer;
+    user-select: none;
+    list-style: none;
+    padding: 8px 12px;
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+}
+.picker-summary::-webkit-details-marker { display: none; }
+.picker-title {
+    font-family: 'Barlow Condensed', system-ui, sans-serif;
+    font-weight: 800;
+    font-size: 13px;
+    letter-spacing: 0.12em;
+    color: #94a3b8;
+}
+.picker-panel[open] .picker-title { color: #cbd5e1; }
+.picker-hint { color: #555; font-size: 11px; font-style: italic; }
+/* Cohesion anchor strip — sits at top of the PICKER DECISIONS panel.
+   Shows the 2-3 files currently anchoring the picker (CLIP-similar
+   "music-video shoot" subset) + countdown to next re-roll. */
+.cohesion-strip {
+    margin: 4px 12px;
+    padding: 6px 10px;
+    background: #160e0a;
+    border-left: 3px solid #f59e0b;
+    border-radius: 4px;
+    font-size: 11px;
+    color: #fbbf24;
+}
+.cohesion-head {
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 4px;
+}
+.cohesion-title {
+    font-family: 'Barlow Condensed', monospace;
+    font-weight: 800; letter-spacing: 0.08em;
+    color: #fde68a;
+}
+.cohesion-timer {
+    flex: 1;
+    font-family: 'Barlow Condensed', monospace;
+    font-size: 10px; color: #b07c10;
+}
+.cohesion-refresh {
+    background: transparent; border: 1px solid #f59e0b;
+    color: #fbbf24; border-radius: 3px;
+    padding: 1px 8px; cursor: pointer; font-size: 12px;
+}
+.cohesion-refresh:active { background: #f59e0b; color: #160e0a; }
+.cohesion-files {
+    display: flex; flex-direction: column; gap: 1px;
+}
+.cohesion-empty {
+    color: #6b4a10; font-style: italic; font-size: 10px;
+}
+.cohesion-file {
+    display: flex; align-items: baseline; gap: 6px;
+    padding: 2px 0;
+}
+.cohesion-file.seed { color: #fde68a; font-weight: 700; }
+.cohesion-file-mark {
+    flex: 0 0 auto; font-family: monospace; color: #b07c10;
+}
+.cohesion-file-name {
+    flex: 1; overflow: hidden; text-overflow: ellipsis;
+    white-space: nowrap; min-width: 0;
+}
+
+.picker-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 4px 12px 12px;
+    max-height: 280px;
+    overflow-y: auto;
+}
+.picker-empty {
+    color: #666;
+    font-size: 12px;
+    font-style: italic;
+    padding: 8px 4px;
+}
+.picker-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    background: #161a22;
+    border-left: 3px solid #3a4a5a;
+    border-radius: 4px;
+    color: #c0c0c0;
+    font-size: 12px;
+    flex-wrap: wrap;
+}
+.picker-row.pick-kind-kick-jump   { border-left-color: #c026d3; }
+.picker-row.pick-kind-stem-restrict{ border-left-color: #a78bfa; }
+.picker-row.pick-kind-random      { border-left-color: #22c55e; }
+.picker-row.pick-kind-sequential  { border-left-color: #6b7280; }
+.pick-num {
+    flex: 0 0 auto;
+    color: #888;
+    font-weight: 800;
+    min-width: 14px;
+}
+.pick-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}
+.pick-reason {
+    flex: 0 0 100%;
+    color: #888;
+    font-size: 10px;
+    font-family: 'Barlow Condensed', monospace;
+    letter-spacing: 0.04em;
+    margin-top: 2px;
+}
+.pick-age {
+    flex: 0 0 auto;
+    color: #666;
+    font-size: 10px;
+    min-width: 40px;
+    text-align: right;
+}
+
+/* Votes & corrections panel. Visibility into the hardware vote
+   system (master < > arrows = up/down vote; hold-GROUP-X = category
+   correction). Auto-refreshes every 2s while open. */
+.votes-panel {
+    margin: 8px 12px;
+    border: 1px solid #3a2a4a;
+    border-radius: 8px;
+    background: #160e18;
+}
+.votes-summary {
+    cursor: pointer;
+    user-select: none;
+    list-style: none;
+    padding: 8px 12px;
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+}
+.votes-summary::-webkit-details-marker { display: none; }
+.votes-title {
+    font-family: 'Barlow Condensed', system-ui, sans-serif;
+    font-weight: 800;
+    font-size: 13px;
+    letter-spacing: 0.12em;
+    color: #c084fc;
+}
+.votes-panel[open] .votes-title { color: #e9d5ff; }
+.votes-hint { color: #6b4a72; font-size: 11px; font-style: italic; }
+.votes-empty { color: #555; font-size: 12px; font-style: italic; padding: 4px; }
+.votes-current {
+    margin: 4px 12px 8px;
+    padding: 8px 10px;
+    background: #1a0f22;
+    border-left: 3px solid #c084fc;
+    border-radius: 4px;
+    font-size: 12px;
+    color: #d4c8e0;
+}
+.votes-current-name {
+    font-weight: 700;
+    color: #f0e0ff;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.votes-current-stats {
+    margin-top: 4px;
+    font-family: 'Barlow Condensed', monospace;
+    font-size: 11px;
+    color: #aa90c0;
+    letter-spacing: 0.04em;
+}
+.votes-current-stats .vote-up { color: #6ee7b7; font-weight: 700; }
+.votes-current-stats .vote-dn { color: #fca5a5; font-weight: 700; }
+.votes-current-stats .vote-corr { color: #fcd34d; font-weight: 700; }
+.votes-cols {
+    display: flex;
+    gap: 8px;
+    padding: 0 12px 12px;
+}
+.votes-col { flex: 1; min-width: 0; }
+.votes-col-h {
+    font-family: 'Barlow Condensed', monospace;
+    font-size: 10px;
+    letter-spacing: 0.16em;
+    color: #886a90;
+    padding: 4px 0;
+    border-bottom: 1px solid #2a1a32;
+    margin-bottom: 4px;
+}
+.votes-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-height: 200px;
+    overflow-y: auto;
+}
+.votes-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 6px;
+    background: #100818;
+    border-radius: 3px;
+    font-size: 11px;
+    color: #b8a0c0;
+}
+.votes-row-score {
+    flex: 0 0 auto;
+    font-weight: 800;
+    min-width: 26px;
+    text-align: right;
+    font-family: 'Barlow Condensed', monospace;
+}
+.votes-row.pos .votes-row-score { color: #6ee7b7; }
+.votes-row.neg .votes-row-score { color: #fca5a5; }
+.votes-row-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}
+
+/* CLIP semantic search panel. Tap to expand, type natural-language
+   query, hit SEARCH. Results listed with score + filename, tap to
+   fire that clip. Teal accent so it doesn't clash with the purple
+   votes panel above or the magic-mix purple below. */
+.clip-search-panel {
+    margin: 8px 12px;
+    border: 1px solid #1e4a4a;
+    border-radius: 8px;
+    background: #0a1a1a;
+}
+/* Top-level promoted variant (2026-05-19): full-width panel like
+   Library, teal accent matching the MK2-mirror's. */
+#clip-search-panel-top {
+    grid-column: 1 / -1;
+    border-left: 4px solid #5eead4;
+    padding-left: 12px;
+    background: #0a1a1a;
+}
+#clip-search-panel-top .clip-search-top-header {
+    display: flex; align-items: baseline; gap: 12px;
+    margin-bottom: 8px; flex-wrap: wrap;
+}
+#clip-search-panel-top .clip-search-top-header h2 {
+    margin-bottom: 0;
+    font-size: 22px;
+    letter-spacing: 0.04em;
+    color: #99f6e4;
+}
+#clip-search-panel-top .clip-search-top-hint {
+    color: #4a8a8a; font-size: 11px; font-style: italic;
+}
+/* Top-variant query form sits wider — let input fill the row. */
+#clip-search-panel-top .clip-search-form {
+    padding: 0 0 8px 0;
+}
+#clip-search-panel-top .clip-search-results {
+    padding: 4px 0 8px 0;
+    max-height: 380px;
+}
+.clip-search-summary {
+    cursor: pointer; user-select: none; list-style: none;
+    padding: 8px 12px; display: flex; align-items: baseline; gap: 10px;
+}
+.clip-search-summary::-webkit-details-marker { display: none; }
+.clip-search-title {
+    font-family: 'Barlow Condensed', system-ui, sans-serif;
+    font-weight: 800; font-size: 13px; letter-spacing: 0.12em;
+    color: #5eead4;
+}
+.clip-search-panel[open] .clip-search-title { color: #99f6e4; }
+.clip-search-hint { color: #4a6a6a; font-size: 11px; font-style: italic; }
+.clip-search-form {
+    display: flex; gap: 8px; padding: 8px 12px;
+}
+.clip-search-input {
+    flex: 1;
+    background: #0e1818; color: #e0fcfa;
+    border: 1px solid #1e4a4a; border-radius: 4px;
+    padding: 8px 10px; font-size: 14px;
+    font-family: system-ui, sans-serif;
+}
+.clip-search-input:focus {
+    outline: none; border-color: #5eead4;
+    box-shadow: 0 0 6px #5eead466;
+}
+.clip-search-btn {
+    background: #134e4a; color: #99f6e4;
+    border: 1px solid #5eead4; border-radius: 4px;
+    padding: 8px 16px; font-weight: 800; font-size: 12px;
+    letter-spacing: 0.1em; cursor: pointer;
+}
+.clip-search-btn:active { background: #5eead4; color: #0a1a1a; }
+.clip-search-btn[disabled] { opacity: 0.5; cursor: wait; }
+/* The →BANKS button is the same shape as SEARCH but warm-tinted to
+   signal "this is destructive — it overwrites banks A-H". */
+.clip-to-banks-btn {
+    background: #5b2a08 !important; color: #fed7aa !important;
+    border-color: #f59e0b !important;
+}
+.clip-to-banks-btn:active {
+    background: #f59e0b !important; color: #0a1a1a !important;
+}
+/* Save / star button: gold-tinted to read as "favorite" gesture */
+.clip-save-btn {
+    background: #422006 !important; color: #fde68a !important;
+    border-color: #ca8a04 !important;
+}
+.clip-save-btn:active {
+    background: #ca8a04 !important; color: #1a1a00 !important;
+}
+/* OPENERS shortcut: purple to distinguish from save (gold) and
+   →BANKS (amber). Reads as "preset content" gesture. */
+.openers-btn {
+    background: #2e1065 !important; color: #ddd6fe !important;
+    border-color: #7c3aed !important;
+}
+.openers-btn:active {
+    background: #7c3aed !important; color: #f3e8ff !important;
+}
+/* Saved-vibe chips row: horizontal scrollable strip just below the
+   query form. One tap = re-fire that vibe to banks; long-press = del. */
+.saved-vibes {
+    display: flex; flex-wrap: wrap; gap: 6px;
+    padding: 4px 12px 0;
+}
+.saved-vibe-chip {
+    background: #1c1410; color: #fde68a;
+    border: 1px solid #78350f; border-radius: 14px;
+    padding: 4px 12px;
+    font-family: 'Barlow Condensed', system-ui, sans-serif;
+    font-size: 12px; font-weight: 700;
+    letter-spacing: 0.04em; cursor: pointer;
+    user-select: none;
+    transition: background 100ms ease, color 100ms ease;
+}
+.saved-vibe-chip:hover, .saved-vibe-chip:active {
+    background: #78350f; color: #fef3c7;
+}
+.saved-vibe-empty {
+    color: #4a3a2a; font-size: 11px; font-style: italic;
+    padding: 4px 0;
+}
+/* Curated theme chips — violet, distinct from the amber saved-vibes.
+   Primary navigation, so a touch larger / bolder. */
+.theme-chips {
+    display: flex; flex-wrap: wrap; gap: 8px;
+    padding: 6px 12px 2px;
+}
+.theme-chip {
+    background: #1a1726; color: #d8b4fe;
+    border: 1px solid #6b21a8; border-radius: 16px;
+    padding: 7px 14px;
+    font-family: 'Barlow Condensed', system-ui, sans-serif;
+    font-size: 14px; font-weight: 700;
+    letter-spacing: 0.05em; text-transform: uppercase;
+    cursor: pointer; user-select: none;
+    transition: background 100ms ease, color 100ms ease,
+                border-color 100ms ease, opacity 100ms ease;
+}
+.theme-chip:hover, .theme-chip:active {
+    background: #6b21a8; color: #f3e8ff;
+}
+.theme-chip-active {
+    background: #7e22ce; color: #faf5ff;
+    border-color: #c084fc;
+}
+.theme-chip-loading { opacity: 0.45; }
+.theme-chip-n {
+    font-size: 11px; font-weight: 600; opacity: 0.6;
+}
+
+/* ── Mode Dashboard — "what mode am I in" pill grid (read-only) ─────── */
+.mode-dash {
+    display: flex; flex-wrap: wrap; gap: 6px;
+    padding: 8px 12px;
+}
+.mode-dash-empty {
+    color: #4a4a4a; font-size: 12px; font-style: italic;
+}
+.mode-pill {
+    display: flex; flex-direction: column;
+    min-width: 82px;
+    padding: 5px 11px;
+    border-radius: 8px;
+    border: 1px solid #2a2a32;
+    background: #15151a;
+    line-height: 1.15;
+}
+.mode-pill-label {
+    font-size: 9px; font-weight: 700;
+    letter-spacing: 0.09em; text-transform: uppercase;
+    color: #6b6b75;
+}
+.mode-pill-value {
+    font-family: 'Barlow Condensed', system-ui, sans-serif;
+    font-size: 17px; font-weight: 700;
+    letter-spacing: 0.02em;
+    color: #d0d0d8;
+}
+.mode-pill-off  .mode-pill-value { color: #5a5a63; }
+.mode-pill-on      { border-color: #15803d; background: #0e1f15; }
+.mode-pill-on      .mode-pill-value { color: #4ade80; }
+.mode-pill-alt     { border-color: #b45309; background: #1f1509; }
+.mode-pill-alt     .mode-pill-value { color: #fbbf24; }
+.mode-pill-hot     { border-color: #b91c1c; background: #210e0e; }
+.mode-pill-hot     .mode-pill-value { color: #f87171; }
+.mode-pill-neutral { border-color: #1e3a5f; background: #0d1726; }
+.mode-pill-neutral .mode-pill-value { color: #60a5fa; }
+.clip-search-meta {
+    padding: 0 12px 4px;
+    font-family: 'Barlow Condensed', monospace;
+    font-size: 11px; color: #4a8a8a;
+}
+.clip-search-results {
+    display: flex; flex-direction: column; gap: 2px;
+    padding: 4px 12px 12px;
+    max-height: 320px; overflow-y: auto;
+}
+.clip-search-empty {
+    color: #4a6a6a; font-size: 12px; font-style: italic;
+    padding: 8px 4px;
+}
+.clip-search-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 6px 10px; background: #0e1818;
+    border-left: 3px solid #5eead4; border-radius: 4px;
+    color: #c0fcfa; font-size: 12px; cursor: pointer;
+}
+.clip-search-row:active { background: #134e4a; }
+.clip-search-score {
+    flex: 0 0 auto; font-family: 'Barlow Condensed', monospace;
+    font-weight: 800; font-size: 12px; min-width: 48px; color: #5eead4;
+    text-align: right;
+}
+.clip-search-name {
+    flex: 1; overflow: hidden; text-overflow: ellipsis;
+    white-space: nowrap; min-width: 0;
+}
+
+/* MagicMix recommendations panel. Lives inside the openers area
+   but it's its own collapsible (default closed). */
+.magic-mix-panel {
+    margin: 8px 12px;
+    border: 1px solid #3a2a5a;
+    border-radius: 8px;
+    background: #161020;
+}
+.magic-summary {
+    cursor: pointer;
+    user-select: none;
+    list-style: none;
+    padding: 8px 12px;
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+}
+.magic-summary::-webkit-details-marker { display: none; }
+.magic-mix-panel[open] .magic-summary { color: #d8b4fe; }
+.magic-title {
+    font-family: 'Barlow Condensed', system-ui, sans-serif;
+    font-weight: 800;
+    font-size: 13px;
+    letter-spacing: 0.12em;
+    color: #d8b4fe;
+}
+.magic-hint {
+    color: #666;
+    font-size: 11px;
+    font-style: italic;
+}
+.magic-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 4px 12px 8px;
+    max-height: 280px;
+    overflow-y: auto;
+}
+.magic-empty {
+    color: #666;
+    font-size: 12px;
+    font-style: italic;
+    padding: 8px 4px;
+}
+.magic-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    background: #1a1428;
+    border: 1px solid #2a1f3a;
+    border-radius: 6px;
+    color: #d0d0d0;
+    font-size: 12px;
+    cursor: pointer;
+    text-align: left;
+    flex-wrap: wrap;
+    transition: background 100ms ease, border-color 100ms ease;
+}
+.magic-row:hover {
+    background: #2a1f4a;
+    border-color: #5a3a8a;
+}
+.magic-row.magic-firing {
+    background: #7c3aed;
+    color: #fff;
+    border-color: #a78bfa;
+}
+.mm-rank {
+    flex: 0 0 auto;
+    color: #888;
+    font-weight: 800;
+    min-width: 14px;
+}
+.mm-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}
+.mm-score {
+    flex: 0 0 auto;
+    color: #a78bfa;
+    font-family: 'Barlow Condensed', monospace;
+    font-size: 11px;
+    min-width: 36px;
+    text-align: right;
+}
+.mm-reasons {
+    flex: 0 0 100%;
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+    margin-top: 2px;
+}
+.mm-reason {
+    background: #2a1f3a;
+    color: #aaa;
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 8px;
+}
+.magic-refresh {
+    background: #2a1f3a;
+    color: #c8a8e8;
+    border: 1px solid #3a2a4a;
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 11px;
+    cursor: pointer;
+    margin: 0 12px 10px;
+}
+.magic-refresh:hover { background: #3a2a5a; color: #fff; }
+
+/* Monitor preview shrunk to a strip so Decks + Banks rise into the
+   first viewport. Keep aspect-ratio = 16/9 but cap the height. */
+.monitor-frame {
+    max-height: 110px;
+    aspect-ratio: auto;
+}
+.monitor-frame img,
+.monitor-frame .monitor-offline {
+    max-height: 110px;
+    object-fit: contain;
+}
+
+/* Folder BANK button: icon-only (⊞), 40x40, low-contrast until
+   pressed. Lets the folder NAME read as the dominant element of
+   the row. */
+.lib-row.lib-folder .lib-folder-bank {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    padding: 0;
+    background: transparent;
+    border: 1px solid #2a5a8a;
+    color: #5a8aba;
+    border-radius: 8px;
+    font-size: 22px;
+    line-height: 1;
+    font-weight: 700;
+    margin-right: 10px;
+    text-align: center;
+    letter-spacing: 0;
+    cursor: pointer;
+    transition: background 100ms ease, color 100ms ease,
+                border-color 100ms ease;
+}
+.lib-row.lib-folder .lib-folder-bank:hover {
+    background: #1a3a5a;
+    color: #b0e0ff;
+    border-color: #3a7aaa;
+}
+.lib-row.lib-folder .lib-folder-bank:active {
+    background: #2a5a8a;
+    color: #fff;
+}
+
+/* Collapsible panel summaries — match existing panel headers so the
+   visual rhythm of the page doesn't break. */
+.panel-collapsible details > summary {
+    list-style: none;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    padding: 2px 0;
+}
+.panel-collapsible details > summary::-webkit-details-marker { display: none; }
+.panel-collapsible details > summary::after {
+    content: '▸';
+    color: #666;
+    font-size: 14px;
+    margin-left: 8px;
+    transition: transform 120ms ease;
+    display: inline-block;
+}
+.panel-collapsible details[open] > summary::after {
+    transform: rotate(90deg);
+}
+.panel-collapsible details > summary h2 {
+    display: inline-block;
+    margin: 0;
+}
+
+/* Scratch toolbar collapsed inside the still-visible scratch panel.
+   Just hide the per-action buttons until the operator opens "edit ·". */
+.scratch-tools-details {
+    display: inline-block;
+}
+.scratch-tools-details > summary {
+    list-style: none;
+    cursor: pointer;
+    user-select: none;
+    color: #666;
+    font-size: 12px;
+    padding: 4px 8px;
+}
+.scratch-tools-details > summary::-webkit-details-marker { display: none; }
+.scratch-tools-details[open] > summary { color: #aaa; }
+.scratch-tools-details .scratch-toolbar {
+    margin-top: 8px;
+}
+
+/* Loose-files toggle row at the root level. Same shape as a folder
+   row but distinctly muted so it doesn't compete with real folders. */
+.lib-row.lib-loose-toggle {
+    background: #0e0e0e;
+    color: #888;
+    border-top: 1px dashed #2a2a2a;
+    border-bottom: 1px dashed #2a2a2a;
+    cursor: pointer;
+    user-select: none;
+}
+.lib-row.lib-loose-toggle .lib-icon {
+    color: #5a8aba;
+    font-size: 16px;
+}
+.lib-row.lib-loose-toggle .lib-name {
+    font-style: italic;
+}
+.lib-row.lib-loose-toggle:hover { background: #1a1a1a; color: #ccc; }

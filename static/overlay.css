@@ -1,0 +1,218 @@
+/* =======================================================================
+   Setpiece "Now Playing" overlay — OBS browser source (1920x1080)
+
+   Design goals:
+   - Transparent background so it composites over live video.
+   - Readable over ANY footage: semi-opaque backing panel + text-shadow.
+   - Tasteful motion: gentle entrance, beat-pulsing BPM, soft ON AIR glow.
+
+   ---- CUSTOMIZATION KNOBS (search these comments) ----
+   [POSITION]  -> move the card (corner vs lower-third) : .overlay
+   [COLORS]    -> accent / panel / text colors          : :root vars
+   [SIZE]      -> overall scale of the card             : .card font-size
+   ======================================================================= */
+
+/* TRANSPARENT BG — critical. OBS keys this out to nothing. */
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 1920px;
+  height: 1080px;
+  background: transparent;       /* DO NOT set a color here. */
+  overflow: hidden;
+  font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* [COLORS] tweak the whole look from here. */
+:root {
+  --accent:        #ff2d55;            /* ON AIR red / beat-lit color */
+  --accent-soft:   rgba(255, 45, 85, 0.55);
+  --panel-bg:      rgba(12, 14, 20, 0.72);   /* backing panel */
+  --panel-border:  rgba(255, 255, 255, 0.10);
+  --text-main:     #ffffff;
+  --text-dim:      rgba(255, 255, 255, 0.62);
+  --progress-bg:   rgba(255, 255, 255, 0.16);
+  --progress-fill: #ff2d55;
+}
+
+/* [POSITION] The card lives bottom-left by default (classic lower-third).
+   - Bottom-right corner card : set  left:auto; right:64px;
+   - Top-left                 : set  bottom:auto; top:64px;
+   - Centered lower-third     : set  left:50%; transform:translateX(-50%); */
+.overlay {
+  position: absolute;
+  left: 64px;
+  bottom: 72px;
+  transition: opacity 0.6s ease;
+  opacity: 1;
+}
+
+/* Disconnected: server down / fetch failing -> fade out, don't show stale. */
+.overlay.disconnected {
+  opacity: 0;
+}
+
+/* The card itself. [SIZE] scale everything by changing this font-size. */
+.card {
+  font-size: 18px;                 /* base unit — all rems below scale off this */
+  display: flex;
+  align-items: stretch;
+  gap: 1.4em;
+  padding: 1.3em 1.6em;
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 0.9em;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.55);
+  /* Gentle entrance when the page (re)loads. */
+  animation: cardIn 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes cardIn {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ---- ON AIR pill ---- */
+.onair {
+  position: absolute;
+  top: -0.9em;
+  left: 1.4em;
+  display: flex;
+  align-items: center;
+  gap: 0.45em;
+  padding: 0.3em 0.7em;
+  background: var(--accent);
+  border-radius: 0.4em;
+  box-shadow: 0 0 18px var(--accent-soft);
+}
+.onair-label {
+  font-size: 0.72em;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  color: #fff;
+  text-transform: uppercase;
+}
+.onair-dot {
+  width: 0.55em;
+  height: 0.55em;
+  border-radius: 50%;
+  background: #fff;
+  animation: onairBlink 1.8s ease-in-out infinite;
+}
+@keyframes onairBlink {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.25; }
+}
+/* When not playing, the ON AIR pill goes neutral/dim. */
+.overlay.idle .onair {
+  background: rgba(90, 95, 110, 0.85);
+  box-shadow: none;
+}
+.overlay.idle .onair-dot {
+  animation: none;
+  opacity: 0.5;
+}
+
+/* ---- Info block (clip name + progress) ---- */
+.info {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 22em;
+  max-width: 34em;
+}
+.now-label {
+  font-size: 0.62em;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  margin-bottom: 0.25em;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+.clip-name {
+  font-size: 1.55em;
+  font-weight: 700;
+  color: var(--text-main);
+  line-height: 1.15;
+  /* Long names: clamp to 2 lines, ellipsize. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.9);
+}
+
+/* ---- Progress bar ---- */
+.progress {
+  margin-top: 0.7em;
+  height: 0.32em;
+  width: 100%;
+  background: var(--progress-bg);
+  border-radius: 1em;
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  width: 0%;
+  background: var(--progress-fill);
+  border-radius: 1em;
+  /* Smooth-glide the bar between 500ms polls so it doesn't step. */
+  transition: width 0.5s linear;
+}
+.time-row {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.35em;
+  font-size: 0.66em;
+  font-weight: 600;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+
+/* ---- BPM block ---- */
+.bpm-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding-left: 1.4em;
+  border-left: 1px solid var(--panel-border);
+  min-width: 4.2em;
+}
+.bpm-number {
+  font-size: 3.1em;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--text-main);
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.9);
+  /* Eased back to rest after each beat-pulse. */
+  transition: transform 0.18s ease-out, color 0.18s ease-out,
+              text-shadow 0.18s ease-out;
+}
+/* .lit is toggled by overlay.js when last_beat_age_ms is small. */
+.bpm-number.lit {
+  color: var(--accent);
+  transform: scale(1.16);
+  text-shadow: 0 0 22px var(--accent-soft), 0 2px 8px rgba(0, 0, 0, 0.9);
+}
+.bpm-label {
+  font-size: 0.7em;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: var(--text-dim);
+  margin-top: 0.3em;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+/* BPM unavailable (audio-reactive off / no signal) -> dim the whole block. */
+.bpm-block.inactive {
+  opacity: 0.4;
+}
+.bpm-block.inactive .bpm-number {
+  color: var(--text-dim);
+}

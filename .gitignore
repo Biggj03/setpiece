@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.benchmarks/
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Tag store / generated data
+*.db3
+*.sqlite
+*.sqlite3
+*.db3-wal
+*.db3-shm
+
+# Logs and run artifacts
+*.log
+*.stdout
+
+# Large downloaded dependencies (see SETUP.md)
+*.dll
+*.pt
+libmpv-*.dll
+hidapi*.zip
+hidapi-tmp/
+yolov8n-pose.pt
+
+# Local config and state
+settings.json
+*_state.json
+saved_searches.json
+
+# Sanitization audit report (regenerated; contains flagged terms)
+_sanitize_audit_report.md
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

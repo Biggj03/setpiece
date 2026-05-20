@@ -1,0 +1,29 @@
+# Setpiece — core runtime dependencies.
+# These are everything the engine + visual-attribute taggers need.
+# Heavy / opt-in ML dependencies live in requirements-optional.txt.
+
+# Desktop GUI
+PyQt6>=6.7.0
+PyQt6-Qt6>=6.7.0
+
+# Video playback — embedded libmpv, hardware-decoded.
+# Also needs the libmpv shared library on the system:
+#   Windows: libmpv-2.dll on PATH (e.g. `choco install mpv`)
+#   Debian/Ubuntu: `apt install libmpv2`
+python-mpv>=1.0.7
+
+# Analysis / taggers
+numpy>=1.24
+opencv-python>=4.8
+Pillow>=10.0
+
+# Misc runtime
+psutil>=5.9
+
+# Hardware control surfaces (HID). The app runs without a controller;
+# this is only needed if you use a Maschine MK2 / Traktor S2 / similar.
+hidapi>=0.14.0
+
+# System-audio loopback for audio reactivity. Windows-only (WASAPI).
+# On Linux, audio capture uses a different backend (see SETUP.md).
+pyaudiowpatch>=0.2.12.5; sys_platform == "win32"

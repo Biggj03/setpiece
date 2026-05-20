@@ -1,0 +1,185 @@
+# Iconic EDM / dance / pop hooks corpus.
+#
+# Each line = ONE phrase that gets matched against dialog tags + live
+# lyric streams. User's insight (2026-05-17): "they still play alot of
+# the lyrical drops from the last 20 years the pool of likely phrases
+# would have to be quite small ... on any given set the chance it says
+# 'Drop the Bass' or 'You are my clarity' is like 1 in 5."
+#
+# Format:
+#   <human phrase>  | <optional artist : track>
+# Comments start with #. Blank lines ignored.
+# Order doesn't matter — phrase_tagger.py slugifies each phrase
+# (lowercase, drop punctuation, hyphenate) and tags any clip whose
+# dialog: tags contain ALL the words of the phrase.
+#
+# Maintenance: add new iconic phrases as they emerge. Remove dead ones
+# only sparingly — old hooks recur all the time in throwback sets.
+
+# ── 2025-26 era ──
+neva play
+the speakers gonna blow
+bring me to life
+
+# ── 2020-2024 era ──
+giving me life
+i feel free
+you got me feeling like a god
+hands up if you love me
+
+# ── 2015-2019 era (peak festival anthems) ──
+turn down for what          | DJ Snake & Lil Jon
+you are my clarity          | Zedd
+where are u now             | Skrillex Diplo Bieber
+faded                       | Alan Walker
+in the name of love         | Bebe Rexha Martin Garrix
+this is what you came for   | Calvin Harris Rihanna
+let me love you             | Justin Bieber DJ Snake
+something just like this    | Coldplay Chainsmokers
+closer                      | Chainsmokers
+roses                       | Chainsmokers
+we found love               | Calvin Harris Rihanna
+levels                      | Avicii
+wake me up                  | Avicii
+hey brother                 | Avicii
+the nights                  | Avicii
+don't you worry child       | Swedish House Mafia
+save the world              | Swedish House Mafia
+greyhound                   | Swedish House Mafia
+i could be the one          | Avicii Nicky Romero
+animals                     | Martin Garrix
+tremor                      | Martin Garrix Dimitri Vegas
+i took a pill in ibiza      | Mike Posner
+lean on                     | Major Lazer
+let it go                   | Major Lazer
+get low                     | Dillon Francis DJ Snake
+middle                      | DJ Snake
+propaganda                  | DJ Snake
+bird machine                | DJ Snake Alesia
+runaway                     | OMI
+stay                        | Kygo Maty Noyes
+firestone                   | Kygo
+here for you                | Kygo
+i could be enough           | Kygo
+scared to be lonely         | Martin Garrix
+how you remind me           | Nickelback
+titanium                    | David Guetta Sia
+
+# ── 2010-2014 era ──
+drop the bass               | Tiesto / various
+born this way               | Lady Gaga
+bad romance                 | Lady Gaga
+party rock anthem           | LMFAO
+shots                       | LMFAO
+i'm sexy and i know it      | LMFAO
+on the floor                | J Lo Pitbull
+give me everything          | Pitbull Ne-Yo
+international love          | Pitbull
+fireball                    | Pitbull
+timber                      | Pitbull Kesha
+rather be                   | Clean Bandit
+all about that bass         | Meghan Trainor
+shake it off                | Taylor Swift
+blank space                 | Taylor Swift
+get lucky                   | Daft Punk
+one more time               | Daft Punk
+around the world            | Daft Punk
+harder better faster stronger | Daft Punk
+i feel love                 | Donna Summer / various
+moves like jagger           | Maroon 5
+sugar                       | Maroon 5
+animals                     | Maroon 5
+counting stars              | OneRepublic
+some nights                 | fun.
+we are young                | fun.
+domino                      | Jessie J
+boom clap                   | Charli XCX
+problem                     | Ariana Grande
+break free                  | Ariana Grande
+gangnam style               | Psy
+call me maybe               | Carly Rae Jepsen
+somebody that i used to know | Gotye
+royals                      | Lorde
+team                        | Lorde
+chandelier                  | Sia
+cheap thrills               | Sia
+elastic heart               | Sia
+summertime sadness          | Lana Del Rey
+video games                 | Lana Del Rey
+
+# ── 2005-2009 era (early EDM crossover) ──
+just dance                  | Lady Gaga
+poker face                  | Lady Gaga
+i gotta feeling             | Black Eyed Peas
+boom boom pow               | Black Eyed Peas
+where is the love           | Black Eyed Peas
+sexyback                    | Justin Timberlake
+my humps                    | Black Eyed Peas
+crazy in love               | Beyonce
+single ladies               | Beyonce
+sandstorm                   | Darude
+satisfaction                | Benny Benassi
+in the air tonight          | Phil Collins (recurring drop sample)
+sweet dreams                | Eurythmics / Beyonce
+blue da ba dee              | Eiffel 65
+around the world            | ATC
+better off alone            | Alice Deejay
+i'm blue                    | Eiffel 65
+mr saxobeat                 | Alexandra Stan
+
+# ── Generic hype phrases (cycle constantly) ──
+let's get fucked up
+let's get this party started
+put your hands up
+hands up
+where my people at
+make some noise
+make some motherfucking noise
+turn it up
+turn up
+drop it
+drop it like it's hot
+drop the bass
+bass cannon
+let the bass kick
+boom shakalaka
+oh shit
+hell yeah
+let me see you
+get crazy
+go hard
+hit the floor
+welcome to the jungle
+this is the end of the world
+end of the world as we know it
+calling on me
+calling all the survivors
+are you ready
+i can't hear you
+hands in the air
+everybody clap your hands
+clap your hands
+jump up
+all my people
+ladies and gentlemen
+the only thing we have to fear
+let the music play
+let the bass drop
+shut up and dance
+take me home
+take me back
+get out my way
+i belong to you
+i need a hero
+holding out for a hero
+beat it
+billie jean
+thriller
+
+# ── Vocal chops / wordless hooks (sometimes Whisper-pickable) ──
+oh oh oh
+woah oh oh
+na na na
+la la la
+hey hey hey
+yeah yeah yeah

@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <!-- No aggressive caching: OBS should always pull a fresh page on refresh. -->
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <meta name="viewport" content="width=1920, height=1080">
+  <title>Setpiece — Now Playing Overlay</title>
+  <!-- ?v= cache-bust so a hard-refresh in OBS always gets the latest CSS. -->
+  <link rel="stylesheet" href="/overlay.css?v=1">
+</head>
+<!--
+  Transparent browser-source overlay for OBS (1920x1080).
+  Add as: Browser Source -> URL http://<host>:8765/overlay.html
+  Width 1920, Height 1080, "Shutdown source when not visible" optional.
+  The body is transparent so this composites cleanly over your video.
+-->
+<body>
+  <!-- Root wrapper. .disconnected fades the whole card out gracefully. -->
+  <div id="overlay" class="overlay">
+    <!-- Lower-third card. Move/reposition via .overlay positioning in CSS. -->
+    <div class="card" id="card">
+
+      <!-- ON AIR pill -->
+      <div class="onair" id="onair">
+        <span class="onair-dot"></span>
+        <span class="onair-label">ON AIR</span>
+      </div>
+
+      <!-- Clip name + meta block -->
+      <div class="info">
+        <div class="now-label">NOW PLAYING</div>
+        <div class="clip-name" id="clipName">&mdash;</div>
+
+        <!-- Progress bar -->
+        <div class="progress" id="progress">
+          <div class="progress-fill" id="progressFill"></div>
+        </div>
+        <div class="time-row">
+          <span id="timePos">0:00</span>
+          <span id="timeDur">0:00</span>
+        </div>
+      </div>
+
+      <!-- BPM block — the number pulses on every detected beat. -->
+      <div class="bpm-block" id="bpmBlock">
+        <div class="bpm-number" id="bpmNumber">--</div>
+        <div class="bpm-label">BPM</div>
+      </div>
+
+    </div>
+  </div>
+
+  <script src="/overlay.js?v=1"></script>
+</body>
+</html>
