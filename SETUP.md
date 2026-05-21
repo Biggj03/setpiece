@@ -101,20 +101,25 @@ Tags are stored in a SQLite database at `~/.setpiece/path_tags.db3`.
 
 ## Security / threat model
 
-Setpiece is a **single-operator tool for a trusted LAN**, and the
-control server is built that way:
+The HTTP control server has **no authentication** — any client that can
+reach it can control playback, banks and the library. So it is
+**localhost-only by default**: it binds `127.0.0.1` and is reachable
+only from the machine running Setpiece.
 
-- The HTTP control server on port 8765 has **no authentication**. Anyone
-  who can reach the port can control playback, banks and the library.
-- It allows cross-origin requests (`Access-Control-Allow-Origin: *`), so
-  a web page open in a browser on the same network can also reach it.
+To use a phone or tablet as the control surface, opt into LAN exposure:
 
-This is fine for the intended use — your own machine, your own LAN, at a
-gig. **Do not expose port 8765 to the open internet** or run Setpiece on
-an untrusted network. If you need that, put it behind a reverse proxy
-with auth. File-serving routes (thumbnails, filmstrips, static assets)
-are validated against path traversal; the open surface is the control
-API itself, by design.
+```sh
+python main.py --lan          # bind 0.0.0.0 for this run
+```
+
+or set `"lan_access": true` in `~/.setpiece/settings.json` to make it
+persistent. **Only do this on a network you trust** — there is still no
+auth. Never expose port 8765 to the open internet; if you need remote
+access, put it behind a reverse proxy that adds authentication.
+
+File-serving routes (thumbnails, filmstrips, static assets) are
+validated against path traversal, POST bodies are size-capped, and
+client-supplied folder paths are confined to the library root.
 
 ## Platform notes
 

@@ -1,0 +1,4 @@
+# Setpiece — development dependencies (running the test suite).
+#   pip install -r requirements-dev.txt
+#   pytest
+pytest>=7.4

@@ -24,7 +24,12 @@ add more by dropping a `.glsl` into that folder and binding a key in
 ## Web UI (phone / tablet)
 
 The HTTP control server serves a mobile-optimised web UI on port 8765.
-Open `http://<setpiece-machine>:8765` on any device on the same LAN.
+By default it is **localhost-only** — open `http://127.0.0.1:8765` in a
+browser on the machine running Setpiece. To control it from a phone or
+tablet, launch with `python main.py --lan` (or set `"lan_access": true`
+in settings.json), then open `http://<setpiece-machine>:8765` on any
+device on the same LAN. The server has no authentication, so only
+enable LAN access on a network you trust.
 
 It exposes now-playing, cue markers, audio-reactive status, crossfade,
 live video previews of staged clips, a library browser, and the banks.

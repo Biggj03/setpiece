@@ -75,7 +75,8 @@ python main.py                    # launch — point it at the samples/ folder
 
 Then play any music on the same machine and watch the engine cut the
 clips to it, or press `B` to cut manually. The web control UI is at
-`http://<this-machine>:8765`.
+`http://127.0.0.1:8765` (localhost-only by default — add `--lan` to
+reach it from a phone or tablet; see [`SETUP.md`](SETUP.md)).
 
 You also need two system libraries — **libmpv** and **ffmpeg** — which
 are not pip packages. See [`SETUP.md`](SETUP.md) for the one-line

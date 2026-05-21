@@ -1139,9 +1139,14 @@ class VJPracticeApp(QMainWindow):
 
     def _init_http_server(self):
         try:
+            # LAN exposure is opt-in: localhost-only unless the user sets
+            # "lan_access": true in settings.json or passes --lan. The
+            # control server has no auth, so this stays off by default.
             self.http_server = HTTPServerThread(
                 self.state, port=8765,
                 preview_manager=self.preview_streams,
+                lan=(bool(self.config.get("lan_access", False))
+                     or "--lan" in sys.argv),
             )
             self.http_server.register("play", lambda d: self.play())
             self.http_server.register("pause", lambda d: self.pause())
@@ -2489,7 +2494,15 @@ class VJPracticeApp(QMainWindow):
             if not candidate.is_dir():
                 return {"ok": False,
                         "error": f"folder not found: {folder_rel}"}
-            folder = candidate
+            # folder_rel arrives from an HTTP client — a "../.." or an
+            # absolute path could otherwise escape the library root.
+            # Mirror the boundary check library_cd / library_load_file
+            # already use; never scan outside root.
+            resolved = self._resolve_inside_root(root, candidate)
+            if resolved is None:
+                return {"ok": False,
+                        "error": "folder is outside the library root"}
+            folder = resolved
         else:
             folder = _P(snap.get("folder") or root_str)
         if not folder.is_dir():

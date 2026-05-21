@@ -34,6 +34,11 @@ _PREVIEW_RE = re.compile(r"^/preview/(\d+)\.mjpg$")
 # matches the Hacker News / OpenCV / common Safari-tested convention.
 _MJPEG_BOUNDARY = b"frame"
 
+# Hard cap on POST body size. The control endpoints take tiny JSON
+# payloads; anything larger is rejected with 413 before being read into
+# memory (this is a threaded server — unbounded reads are a DoS vector).
+_MAX_POST_BYTES = 256 * 1024
+
 logger = logging.getLogger(__name__)
 
 # Embedded static dir (for HTML/JS)
@@ -126,10 +131,35 @@ class VJRequestHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         path = self.path.split("?")[0]
         try:
-            length = int(self.headers.get("Content-Length", 0))
+            length = int(self.headers.get("Content-Length", 0) or 0)
+        except (TypeError, ValueError):
+            self._send_no_cache(400)
+            self.wfile.write(b'{"ok":false,"error":"bad Content-Length"}')
+            return
+        if length > _MAX_POST_BYTES:
+            self._send_no_cache(413)
+            self.wfile.write(b'{"ok":false,"error":"request body too large"}')
+            return
+        try:
             body = self.rfile.read(length).decode("utf-8") if length else ""
-            data = json.loads(body) if body else {}
         except Exception:
+            self._send_no_cache(400)
+            self.wfile.write(b'{"ok":false,"error":"could not read body"}')
+            return
+        if body:
+            try:
+                data = json.loads(body)
+            except ValueError:
+                # json.JSONDecodeError is a ValueError subclass.
+                self._send_no_cache(400)
+                self.wfile.write(b'{"ok":false,"error":"malformed JSON body"}')
+                return
+            if not isinstance(data, dict):
+                self._send_no_cache(400)
+                self.wfile.write(
+                    b'{"ok":false,"error":"JSON body must be an object"}')
+                return
+        else:
             data = {}
 
         # Dispatch to registered callback
@@ -650,9 +680,14 @@ class HTTPServerThread:
     """Wraps ThreadingHTTPServer in a background thread."""
 
     def __init__(self, state: AppState, port: int = 8765,
-                 preview_manager: object = None):
+                 preview_manager: object = None, lan: bool = False):
         self.state = state
         self.port = port
+        # lan=False (default) binds 127.0.0.1 — only this machine can
+        # reach the control server. lan=True binds 0.0.0.0 so a phone /
+        # tablet on the LAN can connect. The server has no auth, so LAN
+        # exposure is strictly opt-in (see SETUP.md security note).
+        self.lan = lan
         self.server: Optional[ThreadingHTTPServer] = None
         self.thread: Optional[threading.Thread] = None
         self.callbacks: dict = {}
@@ -681,12 +716,19 @@ class HTTPServerThread:
         VJRequestHandler.callbacks = self.callbacks
         VJRequestHandler.preview_manager = self.preview_manager
 
-        self.server = ThreadingHTTPServer(("0.0.0.0", self.port), VJRequestHandler)
+        host = "0.0.0.0" if self.lan else "127.0.0.1"
+        self.server = ThreadingHTTPServer((host, self.port), VJRequestHandler)
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.thread.start()
 
-        ip = self._get_local_ip()
-        logger.info(f"HTTP server: http://{ip}:{self.port} (iPad: open this URL)")
+        if self.lan:
+            ip = self._get_local_ip()
+            logger.info(f"HTTP server: http://{ip}:{self.port} "
+                        f"(LAN mode — reachable from other devices)")
+        else:
+            ip = "127.0.0.1"
+            logger.info(f"HTTP server: http://127.0.0.1:{self.port} "
+                        f"(localhost only — pass --lan to allow phone/tablet)")
         return ip
 
     def stop(self):
