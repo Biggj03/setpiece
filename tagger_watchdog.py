@@ -20,10 +20,16 @@ USAGE
     python tagger_watchdog.py --tagger pose_tagger.py \\
         --root /path/to/clips --tag-prefix pose: -- --workers 4
 
+    # vision_tag takes the root positionally, not as --root
+    python tagger_watchdog.py --tagger vision_tag.py --root-mode arg \\
+        --root /path/to/clips --tag-prefix clip:
+
 ARGUMENTS
 ---------
     --tagger      tagger script to supervise (e.g. color_tagger.py)
-    --root        library root passed to the tagger as --root
+    --root        library root (always required — the watchdog needs it
+                  to locate the hanging file in the tag DB)
+    --root-mode   how the root reaches the tagger: flag | arg | none
     --tag-prefix  the tag namespace the tagger writes (e.g. "color:").
                   Used to find the next un-done file and to sentinel-tag
                   a hanging file so the restarted run skips it.
@@ -227,6 +233,13 @@ def main() -> int:
                     help="library root passed to the tagger")
     ap.add_argument("--tag-prefix", required=True,
                     help="tag namespace the tagger writes (e.g. 'color:')")
+    ap.add_argument("--root-mode", choices=("flag", "arg", "none"),
+                    default="flag",
+                    help="how the tagger takes the root: 'flag' -> "
+                         "--root <root> (color/geometry/motion/symmetry/"
+                         "pose); 'arg' -> positional <root> (vision_tag); "
+                         "'none' -> not passed, tagger reads the DB "
+                         "(intro_tagger). Default: flag.")
     ap.add_argument("extra", nargs="*",
                     help="extra args forwarded to the tagger (after --)")
     args = ap.parse_args()
@@ -236,8 +249,15 @@ def main() -> int:
     logs_dir.mkdir(exist_ok=True)
     log_path = logs_dir / (Path(script).stem + ".log")
     restart_log = logs_dir / "tagger_watchdog.log"
-    cmd = [sys.executable, "-u", str(REPO_DIR / script),
-           "--root", args.root] + list(args.extra)
+    # `--root` is always required (the watchdog needs it to find the
+    # hanging file in the DB), but how it reaches the tagger varies.
+    cmd = [sys.executable, "-u", str(REPO_DIR / script)]
+    if args.root_mode == "flag":
+        cmd += ["--root", args.root]
+    elif args.root_mode == "arg":
+        cmd.append(args.root)
+    # "none": tagger reads its file list from the tag DB.
+    cmd += list(args.extra)
 
     _log(restart_log, f"watchdog starting — supervising {script}")
     _rotate_log(restart_log, log_path)
