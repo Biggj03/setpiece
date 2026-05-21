@@ -34,6 +34,9 @@ settings.json
 *_state.json
 saved_searches.json
 
+# Generated demo clips (run `python make_samples.py` to recreate)
+samples/
+
 # Sanitization audit report (regenerated; contains flagged terms)
 _sanitize_audit_report.md
 

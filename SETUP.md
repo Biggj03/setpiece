@@ -73,6 +73,11 @@ on a phone or tablet on the same LAN.
 
 ## 4. Tag the library
 
+> **Just want a quick demo?** Run `python make_samples.py` to synthesise
+> a dozen procedural clips into `samples/`, then
+> `python ingest.py --root samples --skip pose --skip vision`. No video
+> library or heavy ML dependencies needed.
+
 Before the picker can make editorial decisions it needs the library
 analysed. Run the ingest pipeline:
 
