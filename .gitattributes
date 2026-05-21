@@ -1,0 +1,10 @@
+# Normalize line endings — LF in the repo, regardless of OS.
+# Keeps the Windows -> Linux migration diff-clean.
+* text=auto eol=lf
+
+# Binary assets — never touch.
+*.glsl text eol=lf
+*.png binary
+*.jpg binary
+*.pt binary
+*.dll binary

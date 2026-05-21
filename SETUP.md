@@ -94,6 +94,23 @@ python ingest.py --root /path/to/clips --skip pose --skip vision
 
 Tags are stored in a SQLite database at `~/.setpiece/path_tags.db3`.
 
+## Security / threat model
+
+Setpiece is a **single-operator tool for a trusted LAN**, and the
+control server is built that way:
+
+- The HTTP control server on port 8765 has **no authentication**. Anyone
+  who can reach the port can control playback, banks and the library.
+- It allows cross-origin requests (`Access-Control-Allow-Origin: *`), so
+  a web page open in a browser on the same network can also reach it.
+
+This is fine for the intended use — your own machine, your own LAN, at a
+gig. **Do not expose port 8765 to the open internet** or run Setpiece on
+an untrusted network. If you need that, put it behind a reverse proxy
+with auth. File-serving routes (thumbnails, filmstrips, static assets)
+are validated against path traversal; the open surface is the control
+API itself, by design.
+
 ## Platform notes
 
 Setpiece is developed on Windows today; a Debian-class Linux port is in
