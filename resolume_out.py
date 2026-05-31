@@ -275,13 +275,25 @@ class ResolumeBridge:
         panic_black. Clips were never ejected, so the look resumes intact."""
         self.set_composition_master(1.0)
 
+    # Arena's tempo ParamRange bounds (Preferences-fixed: 20..500 BPM).
+    TEMPO_MIN = 20.0
+    TEMPO_MAX = 500.0
+
     def set_tempo(self, bpm: float) -> None:
-        """Push CineQ's detected tempo into Resolume's clock so clip
-        playback speed + beat-synced effects ride the same BPM."""
+        """Push tempo into Resolume's clock so clip playback speed +
+        beat-synced effects ride the same BPM.
+
+        IMPORTANT: Resolume's tempo is a ParamRange, and over OSC a
+        ParamRange takes a NORMALISED 0..1 value, not the raw BPM. Sending
+        the raw BPM (>=1) clamps to 1.0 -> max -> 500 BPM (the bug that
+        pinned it at 500). We normalise across TEMPO_MIN..TEMPO_MAX.
+        Verified live on Arena 7.25.2: norm 0.225 -> 128.0 BPM readback."""
         b = float(bpm)
         if b <= 0:
             return
-        self._send("/composition/tempocontroller/tempo", b)
+        b = max(self.TEMPO_MIN, min(self.TEMPO_MAX, b))
+        norm = (b - self.TEMPO_MIN) / (self.TEMPO_MAX - self.TEMPO_MIN)
+        self._send("/composition/tempocontroller/tempo", norm)
 
     def resync_downbeat(self) -> None:
         """Re-align Resolume's clock phase to 'now' (call on a confident
@@ -297,11 +309,22 @@ class ResolumeBridge:
         """Set how clip triggers quantise to the tempo grid. `index` is into
         BEATSNAP_OPTIONS (0=None ... 4='1 Bar' ... 6='1/4 Bar'). With snap
         on, a fired clip waits for the next bar/beat boundary instead of
-        cutting instantly — this is what makes cuts land 'on the 1'."""
+        cutting instantly — this is what makes cuts land 'on the 1'.
+
+        NOTE (unverified address): unlike tempo (proven), no OSC encoding
+        of `/composition/clipbeatsnap` moved Arena 7.25.2 in testing — int,
+        float, normalised, and string-name all no-op'd. Resolume's OSC
+        address for a ParamChoice likely differs from its REST path. We send
+        the normalised choice value (the format ParamRange accepts) as the
+        best guess; confirm the real address via Arena's Output-OSC monitor
+        (move the control by hand and read the emitted address) and update
+        here. Until then beatsnap must be set in Arena's UI."""
         i = int(index)
         if i < 0 or i >= len(self.BEATSNAP_OPTIONS):
             return
-        self._send("/composition/clipbeatsnap", i)
+        # Normalised choice value across the option count (best-guess format).
+        norm = i / (len(self.BEATSNAP_OPTIONS) - 1)
+        self._send("/composition/clipbeatsnap", norm)
 
     # -- control ------------------------------------------------------------
 
