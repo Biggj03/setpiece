@@ -88,6 +88,34 @@ install on Windows / Debian, plus the optional heavy/ML dependencies
 > point `make_samples.py`'s output aside and run
 > `python ingest.py --root /path/to/your/clips`.
 
+## Resolume control panel (optional)
+
+Setpiece can also drive **Resolume Arena** as its render engine and give
+you a phone/tablet control surface for it — useful for live shows where
+Arena handles gapless playback, compositing and multi-screen output.
+
+This is a **standalone** piece: it talks to Arena directly over OSC + REST
+and runs independently of the main engine, so it keeps working even if the
+rest of the rig isn't running.
+
+```sh
+python gig.py            # one-command launcher (or double-click gig.bat on Windows)
+```
+
+It prints the URL(s) to open on a phone/tablet on the same network, runs a
+pre-flight check (is Arena up? webserver + OSC enabled? clips loaded?), and
+serves a touch panel with:
+
+- **MASTER OUTPUT** fader — smooth full-output fade between tracks
+- **PANIC BLACK** — instant kill of all output, reconciled with Arena's real state
+- **per-layer** opacity faders, mute, and clear
+- **crossfader**
+- a **clip grid** with live thumbnails (tap to fire), adjustable density
+
+Arena setup: Preferences → OSC (input on, port 7000) + Webserver (on, port
+8080). The panel auto-reconnects if Arena restarts mid-set. Point it at
+Arena on another machine with `python gig.py --arena-host <ip>`.
+
 ## Documentation
 
 - [`SETUP.md`](SETUP.md) — install, dependencies, tagging a library

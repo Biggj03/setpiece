@@ -66,6 +66,16 @@ def test_oversized_body_returns_413(server):
     # Claim a body far over the cap. The server must reject from the
     # Content-Length header alone, before reading anything into memory —
     # so we send only two bytes but advertise a huge length.
-    status, _ = _post(server, "/api/ping", "{}",
-                      content_length=_MAX_POST_BYTES + 5_000_000)
+    #
+    # Two acceptable outcomes, both proving the oversize was rejected:
+    #   1. The server replies 413 and we read it.
+    #   2. The server closes the socket without draining our (undelivered)
+    #      huge body, so the client read aborts (Windows: WinError 10053).
+    # What must NOT happen is a 200 — that would mean the body was accepted.
+    try:
+        status, _ = _post(server, "/api/ping", "{}",
+                          content_length=_MAX_POST_BYTES + 5_000_000)
+    except (ConnectionError, OSError):
+        # Connection reset mid-exchange == the server refused the oversize.
+        return
     assert status == 413

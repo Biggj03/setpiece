@@ -1,5 +1,5 @@
 """
-OSC broadcaster for the Setpiece VJ rig.
+OSC broadcaster for the CineQ VJ rig.
 
 Broadcasts live rig state (BPM, beats, current clip, fires, crossfade
 position) as OSC 1.0 messages over UDP so external software can sync to
@@ -90,7 +90,7 @@ def _encode_message(address: str, *args) -> bytes:
 # ---------------------------------------------------------------------------
 
 class OSCBroadcaster:
-    """Fire-and-forget OSC/UDP broadcaster for Setpiece rig state.
+    """Fire-and-forget OSC/UDP broadcaster for CineQ rig state.
 
     When ``enabled`` is False every ``send_*`` is a cheap no-op (one bool
     check, no socket touch, no encoding work) so it can stay wired into
@@ -137,35 +137,35 @@ class OSCBroadcaster:
     # -- public send_* ------------------------------------------------------
 
     def send_bpm(self, bpm: float) -> None:
-        """/setpiece/bpm <float>  -- current estimated tempo."""
-        self._send("/setpiece/bpm", float(bpm))
+        """/cineq/bpm <float>  -- current estimated tempo."""
+        self._send("/cineq/bpm", float(bpm))
 
     def send_beat(self, beat_index: int, bpm: float) -> None:
-        """/setpiece/beat <int> <float>  -- fire on every detected beat."""
-        self._send("/setpiece/beat", int(beat_index), float(bpm))
+        """/cineq/beat <int> <float>  -- fire on every detected beat."""
+        self._send("/cineq/beat", int(beat_index), float(bpm))
 
     def send_clip_change(self, filepath: str, name: str) -> None:
-        """/setpiece/clip <string name>  -- a new clip was loaded.
+        """/cineq/clip <string name>  -- a new clip was loaded.
 
         ``filepath`` is accepted for caller convenience / future use but
         only ``name`` is broadcast (keeps the packet small and tidy for
         downstream UIs).
         """
-        self._send("/setpiece/clip", str(name))
+        self._send("/cineq/clip", str(name))
 
     def send_fire(self, source: str, name: str) -> None:
-        """/setpiece/fire <string source> <string name>  -- a clip/bank fired."""
-        self._send("/setpiece/fire", str(source), str(name))
+        """/cineq/fire <string source> <string name>  -- a clip/bank fired."""
+        self._send("/cineq/fire", str(source), str(name))
 
     def send_crossfade(self, position: float) -> None:
-        """/setpiece/xfade <float 0..1>  -- crossfader position."""
+        """/cineq/xfade <float 0..1>  -- crossfader position."""
         # Clamp -- downstream lighting maths hates out-of-range values.
         p = float(position)
         if p < 0.0:
             p = 0.0
         elif p > 1.0:
             p = 1.0
-        self._send("/setpiece/xfade", p)
+        self._send("/cineq/xfade", p)
 
     # -- control ------------------------------------------------------------
 
@@ -201,8 +201,8 @@ class OSCBroadcaster:
 def _self_test() -> None:
     """Assert encoder output matches hand-computed OSC 1.0 bytes."""
 
-    # --- /setpiece/bpm <float 120.0> -----------------------------------------
-    # address "/setpiece/bpm" = 10 chars. +null = 11 bytes. pad to 12:
+    # --- /cineq/bpm <float 120.0> -----------------------------------------
+    # address "/cineq/bpm" = 10 chars. +null = 11 bytes. pad to 12:
     #   2f 63 69 6e 65 71 2f 62 70 6d 00 00
     # typetag ",f" = 2 chars. +null = 3 bytes. pad to 4:
     #   2c 66 00 00
@@ -212,9 +212,9 @@ def _self_test() -> None:
         b"\x2c\x66\x00\x00"
         b"\x42\xf0\x00\x00"
     )
-    got_bpm = _encode_message("/setpiece/bpm", 120.0)
+    got_bpm = _encode_message("/cineq/bpm", 120.0)
     assert got_bpm == expected_bpm, (
-        f"/setpiece/bpm mismatch:\n  got={got_bpm!r}\n  exp={expected_bpm!r}"
+        f"/cineq/bpm mismatch:\n  got={got_bpm!r}\n  exp={expected_bpm!r}"
     )
     assert len(got_bpm) % 4 == 0, "message not 4-byte aligned"
 
@@ -238,8 +238,8 @@ def _self_test() -> None:
     assert _encode_float32(1.0) == b"\x3f\x80\x00\x00", "float32 1.0 wrong"
     assert _encode_float32(0.0) == b"\x00\x00\x00\x00", "float32 0.0 wrong"
 
-    # --- /setpiece/beat <int 4> <float 128.0> --------------------------------
-    # address "/setpiece/beat" = 11 chars +null = 12, already aligned.
+    # --- /cineq/beat <int 4> <float 128.0> --------------------------------
+    # address "/cineq/beat" = 11 chars +null = 12, already aligned.
     # typetag ",if" = 3 chars +null = 4.
     # int32 4 = 00 00 00 04 ; float32 128.0 = 43 00 00 00
     expected_beat = (
@@ -248,13 +248,13 @@ def _self_test() -> None:
         b"\x00\x00\x00\x04"
         b"\x43\x00\x00\x00"
     )
-    got_beat = _encode_message("/setpiece/beat", 4, 128.0)
+    got_beat = _encode_message("/cineq/beat", 4, 128.0)
     assert got_beat == expected_beat, (
-        f"/setpiece/beat mismatch:\n  got={got_beat!r}\n  exp={expected_beat!r}"
+        f"/cineq/beat mismatch:\n  got={got_beat!r}\n  exp={expected_beat!r}"
     )
 
-    # --- /setpiece/fire <string> <string> ------------------------------------
-    # address "/setpiece/fire" = 11 +null = 12. typetag ",ss" = 3 +null = 4.
+    # --- /cineq/fire <string> <string> ------------------------------------
+    # address "/cineq/fire" = 11 +null = 12. typetag ",ss" = 3 +null = 4.
     # "deck" = 4 data +4 null = 8. "vid" = 3 +1 null = 4.
     expected_fire = (
         b"\x2f\x63\x69\x6e\x65\x71\x2f\x66\x69\x72\x65\x00"
@@ -262,9 +262,9 @@ def _self_test() -> None:
         b"\x64\x65\x63\x6b\x00\x00\x00\x00"
         b"\x76\x69\x64\x00"
     )
-    got_fire = _encode_message("/setpiece/fire", "deck", "vid")
+    got_fire = _encode_message("/cineq/fire", "deck", "vid")
     assert got_fire == expected_fire, (
-        f"/setpiece/fire mismatch:\n  got={got_fire!r}\n  exp={expected_fire!r}"
+        f"/cineq/fire mismatch:\n  got={got_fire!r}\n  exp={expected_fire!r}"
     )
 
     # --- bool must be rejected (it's an int subclass) ---------------------

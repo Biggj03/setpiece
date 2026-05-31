@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<title>Resolume Control</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header id="topbar">
+    <div id="status">
+      <span id="statusdot" class="dot dot-unknown"></span>
+      <span id="statustext">connecting...</span>
+    </div>
+    <div id="tabs">
+      <button class="tab tab-active" data-tab="mix">MIX</button>
+      <button class="tab" data-tab="clips">CLIPS</button>
+    </div>
+    <button id="panic" class="panic">PANIC<br>BLACK</button>
+  </header>
+
+  <!-- visible error strip: iOS Safari swallows JS errors silently -->
+  <div id="errbar" class="hidden"></div>
+
+  <section id="tab-mix" class="tabpane">
+    <div id="master-wrap">
+      <div class="master-label">
+        <span>MASTER OUTPUT</span><span id="master-val">100%</span>
+      </div>
+      <input id="master" type="range" min="0" max="1" step="0.01" value="1">
+    </div>
+    <div id="layers"></div>
+    <div id="xfade-wrap">
+      <div class="xfade-label"><span>A</span><span>CROSSFADER</span><span>B</span></div>
+      <input id="xfade" type="range" min="0" max="1" step="0.01" value="0">
+    </div>
+  </section>
+
+  <section id="tab-clips" class="tabpane hidden">
+    <div id="clips-toolbar">
+      <label>Layer <select id="clip-layer"></select></label>
+      <span id="grid-density">
+        <button class="dbtn" data-cols="3">3</button>
+        <button class="dbtn" data-cols="4">4</button>
+        <button class="dbtn" data-cols="5">5</button>
+        <button class="dbtn" data-cols="6">6</button>
+      </span>
+      <span id="clip-hint">tap a loaded cell to fire it</span>
+    </div>
+    <div id="clipgrid"></div>
+  </section>
+
+  <script src="/app.js"></script>
+</body>
+</html>
