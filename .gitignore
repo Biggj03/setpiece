@@ -40,6 +40,10 @@ samples/
 # Sanitization audit report (regenerated; contains flagged terms)
 _sanitize_audit_report.md
 
+# Sanitization audit report — lists the scrubbed content terms by design,
+# so it must never be committed to the public repo. Regenerate locally.
+_sanitize_audit_report.md
+
 # Editor / OS
 .DS_Store
 Thumbs.db

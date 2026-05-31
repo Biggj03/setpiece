@@ -1,5 +1,7 @@
 # Setpiece
 
+[![CI](https://github.com/Biggj03/setpiece/actions/workflows/ci.yml/badge.svg)](https://github.com/Biggj03/setpiece/actions/workflows/ci.yml)
+
 **A live VJ engine that auto-cuts a tagged video library to live music —
 building a structured visual set with beat-quantised cuts, match-cut
 continuity, and a tension arc, instead of a random shuffle.**

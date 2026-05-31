@@ -1,0 +1,49 @@
+name: CI
+
+# Run the gates on every push and PR to main so the shareable product
+# stays trustworthy — a clone should be able to prove its own tests pass.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The code uses 3.10+ syntax (str | None, dict[...] generics).
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install test deps
+        # Lean by design: the Resolume panel + bridge + state modules and
+        # the tagger primitives are stdlib-only, so CI needs nothing but
+        # pytest. The path-safety tests importorskip PyQt6 (and never reach
+        # the libmpv-dependent engine import), so they skip cleanly here
+        # rather than dragging GUI/native deps into CI.
+        run: pip install -r requirements-dev.txt
+
+      - name: Compile all standalone modules
+        # A fast syntax gate independent of test collection.
+        run: |
+          python -m py_compile \
+            resolume_out.py resolume_state.py resolume_dynamic.py \
+            resolume_panel.py osc_out.py gig.py
+
+      - name: Run tests
+        run: python -m pytest -q
+
+      - name: Check panel JavaScript syntax
+        # node is preinstalled on ubuntu runners. The panel's app.js has no
+        # other gate, so a syntax check here catches breakage before a gig.
+        run: node --check resolume_panel/app.js
