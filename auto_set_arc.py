@@ -62,6 +62,8 @@ import time
 from collections import deque
 from typing import Optional
 
+import set_arc_thresholds as _sat
+
 
 class AutoSetArc:
     """Stateful auto-phase detector. One instance per app."""
@@ -76,16 +78,19 @@ class AutoSetArc:
     # Trend window: compare avg BPM in last N samples vs prior N.
     TREND_WINDOW = 6       # ~60s if detect runs every 10s
 
-    # Phase thresholds (BPM)
-    PEAK_BPM = 135
-    BUILD_LO_BPM = 110
-    BUILD_HI_BPM = 135
-    OPENING_HI_BPM = 115
-    BREAKDOWN_LO_BPM = 100
+    # Phase thresholds — sourced from the shared set_arc_thresholds module
+    # so the live detector and the offline analyzer can't drift apart. Kept
+    # as class attributes (self.PEAK_BPM ...) so the predict_* methods below
+    # read unchanged.
+    PEAK_BPM = _sat.PEAK_BPM
+    BUILD_LO_BPM = _sat.BUILD_LO_BPM
+    BUILD_HI_BPM = _sat.BUILD_HI_BPM
+    OPENING_HI_BPM = _sat.OPENING_HI_BPM
+    BREAKDOWN_LO_BPM = _sat.BREAKDOWN_LO_BPM
 
     # Flip-rate thresholds (per minute)
-    PEAK_FLIP_RATE = 6.0
-    BREAKDOWN_FLIP_RATE = 2.0
+    PEAK_FLIP_RATE = _sat.PEAK_FLIP_RATE
+    BREAKDOWN_FLIP_RATE = _sat.BREAKDOWN_FLIP_RATE
 
     def __init__(self):
         self._flip_times: deque[float] = deque(maxlen=200)
@@ -286,28 +291,11 @@ class AutoSetArc:
         trend: int,
         current: str,
     ) -> str:
-        """Stateless cascade. Returns the proposed phase."""
-        # 1. PEAK: hard BPM or a flip burst (operator hammering >)
-        if bpm >= self.PEAK_BPM or flip_rate > self.PEAK_FLIP_RATE:
-            return "peak"
-
-        # 2. BREAKDOWN: BPM falling AND low flip activity, OR very low
-        #    BPM stretch.
-        if (trend < 0 and flip_rate < self.BREAKDOWN_FLIP_RATE):
-            return "breakdown"
-        if bpm > 0 and bpm <= self.BREAKDOWN_LO_BPM and flip_rate < 1.0:
-            return "breakdown"
-
-        # 3. BUILD: rising BPM in the build band.
-        if (trend > 0 and self.BUILD_LO_BPM <= bpm <= self.BUILD_HI_BPM):
-            return "build"
-
-        # 4. OPENING: low / soft BPM that isn't actively falling.
-        if bpm > 0 and bpm <= self.OPENING_HI_BPM and trend >= 0:
-            return "opening"
-
-        # 5. Hysteresis: nothing explicit fired -- keep current.
-        return current
+        """Stateless cascade — delegates to the shared classifier so the
+        live detector and the offline analyzer label phases identically.
+        Kept as a method (the cascade reads from self's thresholds via the
+        shared module) for back-compat with existing callers."""
+        return _sat.classify(bpm, flip_rate, trend, current)
 
     # ── diagnostics ───────────────────────────────────────────────────
     def snapshot(self, now: Optional[float] = None) -> dict:

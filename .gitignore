@@ -44,6 +44,11 @@ _sanitize_audit_report.md
 # so it must never be committed to the public repo. Regenerate locally.
 _sanitize_audit_report.md
 
+# Claude session context — personal notes, iteration log, hard-won lessons.
+# Private; never committed to the public repo.
+CLAUDE.md
+_session_notes/
+
 # Editor / OS
 .DS_Store
 Thumbs.db
