@@ -237,6 +237,23 @@ class PanelHandler(BaseHTTPRequestHandler):
                 b.resync_downbeat()
                 self._json({"ok": True})
 
+            elif path == "/api/effect":
+                # Drive an effect parameter by NAME (effect + param), resolved
+                # to its live id and set over REST. Foundation for arc->effects:
+                # one named control, ramped per set phase. `layer` optional
+                # (composition rack when absent). value 0..1 for a ParamRange.
+                effect = str(d.get("effect", ""))
+                param = str(d.get("param", ""))
+                value = float(d.get("value", 0.0))
+                layer = d.get("layer")
+                layer = int(layer) if layer is not None else None
+                if not effect or not param:
+                    self._json({"ok": False, "error": "effect and param required"}, 400)
+                else:
+                    ok = s.set_effect_param(effect, param, value, layer=layer)
+                    self._json({"ok": ok, "effect": effect,
+                                "param": param, "value": value})
+
             elif path == "/api/connect_clip":
                 layer = int(d.get("layer", 1))
                 col = int(d.get("column", 1))

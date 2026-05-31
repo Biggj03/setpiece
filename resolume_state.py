@@ -78,6 +78,46 @@ class ResolumeState:
             logger.debug("Arena PUT param %s failed: %s", param_id, e)
             return False
 
+    def find_effect_param(self, effect_name, param_name, layer=None):
+        """Resolve the live id of an effect parameter by NAME.
+
+        Effect param ids are composition-specific (they change per .avc), so
+        they must never be hardcoded — resolve them at runtime from the live
+        snapshot, then drive by id. Looks at the composition's video-effects
+        rack by default, or layer N's rack when `layer` is given. Matches
+        effect + param by display name (case-insensitive). Returns the int
+        id, or None if not found / Arena unreachable.
+
+        Foundation for arc->effects: name the effect+param once, drive it by
+        id every frame."""
+        if layer is None:
+            host = self._get("composition")
+        else:
+            host = self._get(f"composition/layers/{int(layer)}")
+        if not host:
+            return None
+        video = host.get("video") if isinstance(host.get("video"), dict) else {}
+        for eff in (video.get("effects") or []):
+            en = _param(eff, "name") or _param(eff, "display_name")
+            if not en or en.lower() != effect_name.lower():
+                continue
+            params = eff.get("params") if isinstance(eff.get("params"), dict) else {}
+            for pname, pinfo in params.items():
+                if pname.lower() == param_name.lower() and isinstance(pinfo, dict):
+                    return pinfo.get("id")
+        return None
+
+    def set_effect_param(self, effect_name, param_name, value, layer=None):
+        """Set an effect parameter by (effect name, param name) -> resolve
+        live id -> PUT by id. `value` is whatever the param takes (0..1 for a
+        ParamRange like Hue Rotate / blur amount). Returns True on success,
+        False if the param can't be found or Arena is unreachable. Never
+        raises. Verified live on Arena 7.25.2 (HueRotate 'Hue Rotate' 0<->0.5)."""
+        pid = self.find_effect_param(effect_name, param_name, layer=layer)
+        if pid is None:
+            return False
+        return self._put_param_by_id(pid, value)
+
     def set_clip_beatsnap(self, index: int) -> bool:
         """Set how clip triggers quantise to the tempo grid. `index` is into
         BEATSNAP_OPTIONS (0=None ... 4='1 Bar' ... 6='1/4 Bar'). With snap

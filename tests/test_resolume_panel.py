@@ -66,6 +66,10 @@ class FakeState:
         return ("image/png", b"\x89PNG\r\n\x1a\n") if cid == 111 else (None, None)
     def set_clip_beatsnap(self, idx):
         self.calls.append(("beatsnap", idx)); return True
+    def set_effect_param(self, effect, param, value, layer=None):
+        self.calls.append(("effect", effect, param, value, layer))
+        # Mimic the real method: unknown effect/param can't resolve.
+        return effect == "HueRotate" and param == "Hue Rotate"
 
 
 # ── server harness ─────────────────────────────────────────────────────
@@ -175,6 +179,38 @@ def test_resync_endpoint_dispatches():
         code, body = srv.post("/api/resync", {})
     assert code == 200 and body["ok"] is True
     assert ("resync",) in b.calls
+
+
+def test_effect_endpoint_dispatches():
+    st = FakeState()
+    with _Server(FakeBridge(), st) as srv:
+        code, body = srv.post("/api/effect",
+                              {"effect": "HueRotate", "param": "Hue Rotate",
+                               "value": 0.5})
+    assert code == 200 and body["ok"] is True and body["value"] == 0.5
+    assert ("effect", "HueRotate", "Hue Rotate", 0.5, None) in st.calls
+
+
+def test_effect_endpoint_missing_args_returns_400():
+    st = FakeState()
+    with _Server(FakeBridge(), st) as srv:
+        try:
+            srv.post("/api/effect", {"value": 0.5})  # no effect/param
+            assert False, "expected 400"
+        except urllib.error.HTTPError as e:
+            assert e.code == 400
+    assert not any(c[0] == "effect" for c in st.calls)
+
+
+def test_effect_endpoint_unresolved_returns_ok_false():
+    # A valid request for an effect/param Arena doesn't have: 200 with
+    # ok=False (the resolve failed), not an error — the panel shows it didn't
+    # take rather than throwing.
+    st = FakeState()
+    with _Server(FakeBridge(), st) as srv:
+        code, body = srv.post("/api/effect",
+                              {"effect": "NoSuchFX", "param": "x", "value": 0.5})
+    assert code == 200 and body["ok"] is False
 
 
 def test_beatsnap_out_of_range_returns_400():
