@@ -300,31 +300,11 @@ class ResolumeBridge:
         downbeat from the beat detector, or a manual tap on the '1')."""
         self._send("/composition/tempocontroller/resync", 1)
 
-    # Composition clip-beatsnap choices, in Arena's option order. The index
-    # is what the OSC choice param takes. "1 Bar" = cuts land on the bar.
-    BEATSNAP_OPTIONS = ("None", "8 Bars", "4 Bars", "2 Bars",
-                        "1 Bar", "1/2 Bar", "1/4 Bar")
-
-    def set_clip_beatsnap(self, index: int) -> None:
-        """Set how clip triggers quantise to the tempo grid. `index` is into
-        BEATSNAP_OPTIONS (0=None ... 4='1 Bar' ... 6='1/4 Bar'). With snap
-        on, a fired clip waits for the next bar/beat boundary instead of
-        cutting instantly — this is what makes cuts land 'on the 1'.
-
-        NOTE (unverified address): unlike tempo (proven), no OSC encoding
-        of `/composition/clipbeatsnap` moved Arena 7.25.2 in testing — int,
-        float, normalised, and string-name all no-op'd. Resolume's OSC
-        address for a ParamChoice likely differs from its REST path. We send
-        the normalised choice value (the format ParamRange accepts) as the
-        best guess; confirm the real address via Arena's Output-OSC monitor
-        (move the control by hand and read the emitted address) and update
-        here. Until then beatsnap must be set in Arena's UI."""
-        i = int(index)
-        if i < 0 or i >= len(self.BEATSNAP_OPTIONS):
-            return
-        # Normalised choice value across the option count (best-guess format).
-        norm = i / (len(self.BEATSNAP_OPTIONS) - 1)
-        self._send("/composition/clipbeatsnap", norm)
+    # NOTE: clip beatsnap is a setup-time ParamChoice and lives in
+    # ResolumeState.set_clip_beatsnap (REST PUT /parameter/by-id). No OSC
+    # encoding of /composition/clipbeatsnap moved Arena 7.25.2, and the
+    # brief's split is OSC-for-runtime / REST-for-setup anyway. The bridge
+    # stays OSC-pure.
 
     # -- control ------------------------------------------------------------
 

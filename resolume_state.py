@@ -43,6 +43,12 @@ class ResolumeState:
         self._rest = rest_base.rstrip("/")
         self._timeout = float(timeout)
 
+    # Composition clip-beatsnap choices, in Arena's option order. The list
+    # index IS the value Arena's parameter takes ("1 Bar" = cuts land on the
+    # bar). Used by set_clip_beatsnap.
+    BEATSNAP_OPTIONS = ("None", "8 Bars", "4 Bars", "2 Bars",
+                        "1 Bar", "1/2 Bar", "1/4 Bar")
+
     def _get(self, path: str) -> Optional[dict]:
         try:
             with urllib.request.urlopen(f"{self._rest}/{path}",
@@ -51,6 +57,45 @@ class ResolumeState:
         except Exception as e:
             logger.debug("Arena GET %s failed: %s", path, e)
             return None
+
+    def _put_param_by_id(self, param_id: int, value) -> bool:
+        """Set an Arena parameter by its id: PUT /parameter/by-id/{id}
+        body {"value": <v>}. Returns True on 2xx.
+
+        This is how Resolume's REST API writes params — by id, NOT by the
+        composition path (those GET fine but 404 on PUT), and NOT over OSC
+        (no OSC encoding of a ParamChoice like clipbeatsnap moved Arena).
+        The id comes from the GET snapshot. Verified live on Arena 7.25.2:
+        PUT value=0 -> 'None', value=4 -> '1 Bar', value=6 -> '1/4 Bar'."""
+        try:
+            req = urllib.request.Request(
+                f"{self._rest}/parameter/by-id/{int(param_id)}",
+                data=json.dumps({"value": value}).encode("utf-8"),
+                headers={"Content-Type": "application/json"}, method="PUT")
+            with urllib.request.urlopen(req, timeout=self._timeout) as r:
+                return 200 <= r.status < 300
+        except Exception as e:
+            logger.debug("Arena PUT param %s failed: %s", param_id, e)
+            return False
+
+    def set_clip_beatsnap(self, index: int) -> bool:
+        """Set how clip triggers quantise to the tempo grid. `index` is into
+        BEATSNAP_OPTIONS (0=None ... 4='1 Bar' ... 6='1/4 Bar'). With snap
+        on, a fired clip waits for the next bar/beat boundary instead of
+        cutting instantly — what makes cuts land 'on the 1'.
+
+        Reads the live clipbeatsnap parameter id, then writes by id over
+        REST. Returns True on success, False on bad index / unreachable
+        Arena (never raises)."""
+        i = int(index)
+        if i < 0 or i >= len(self.BEATSNAP_OPTIONS):
+            return False
+        comp = self._get("composition")
+        bs = (comp or {}).get("clipbeatsnap")
+        pid = bs.get("id") if isinstance(bs, dict) else None
+        if pid is None:
+            return False
+        return self._put_param_by_id(pid, i)
 
     def _get_bytes(self, path: str, timeout: float = None):
         """Raw GET -> (content_type, bytes) or (None, None) on failure.

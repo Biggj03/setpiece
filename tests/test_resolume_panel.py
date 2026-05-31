@@ -24,10 +24,7 @@ import resolume_out
 # ── fakes ──────────────────────────────────────────────────────────────
 
 class FakeBridge:
-    """Records the high-level commands the panel issues."""
-    BEATSNAP_OPTIONS = ("None", "8 Bars", "4 Bars", "2 Bars",
-                        "1 Bar", "1/2 Bar", "1/4 Bar")
-
+    """Records the high-level OSC commands the panel issues."""
     def __init__(self):
         self._enabled = True
         self.calls = []
@@ -42,19 +39,24 @@ class FakeBridge:
     def connect_clip(self, layer, col): self.calls.append(("connect", layer, col))
     def connect_column(self, col): self.calls.append(("column", col))
     def set_tempo(self, bpm): self.calls.append(("tempo", bpm))
-    def set_clip_beatsnap(self, idx): self.calls.append(("beatsnap", idx))
     def resync_downbeat(self): self.calls.append(("resync",))
 
 
 class FakeState:
-    """Returns canned snapshots so the panel has data without Arena."""
+    """Canned snapshots + records REST writes (beatsnap), so the panel has
+    data without Arena."""
+    BEATSNAP_OPTIONS = ("None", "8 Bars", "4 Bars", "2 Bars",
+                        "1 Bar", "1/2 Bar", "1/4 Bar")
     SNAP = {
         "reachable": True, "product": "Arena 7", "master": 1.0,
-        "crossfader": 0.0, "tempo": 128.0,
+        "crossfader": 0.0, "tempo": 128.0, "beatsnap": 4,
         "layers": [{"index": 1, "name": "L1", "opacity": 0.5,
                     "bypassed": False, "solo": False, "loaded": 3,
                     "columns": 8, "active_clip": 2}],
     }
+
+    def __init__(self):
+        self.calls = []
 
     def snapshot(self): return dict(self.SNAP)
     def clip_names(self, layer):
@@ -62,6 +64,8 @@ class FakeState:
                 {"column": 2, "name": None, "loaded": False, "thumb_id": None}]
     def thumbnail_by_id(self, cid):
         return ("image/png", b"\x89PNG\r\n\x1a\n") if cid == 111 else (None, None)
+    def set_clip_beatsnap(self, idx):
+        self.calls.append(("beatsnap", idx)); return True
 
 
 # ── server harness ─────────────────────────────────────────────────────
@@ -157,52 +161,54 @@ def test_tempo_endpoint_dispatches():
 
 
 def test_beatsnap_endpoint_dispatches():
-    b = FakeBridge()
-    with _Server(b, FakeState()) as s:
-        code, body = s.post("/api/beatsnap", {"index": 4})
+    # Beatsnap is set via state (REST PUT), not the OSC bridge.
+    st = FakeState()
+    with _Server(FakeBridge(), st) as srv:
+        code, body = srv.post("/api/beatsnap", {"index": 4})
     assert code == 200 and body["index"] == 4
-    assert ("beatsnap", 4) in b.calls
+    assert ("beatsnap", 4) in st.calls
 
 
 def test_resync_endpoint_dispatches():
     b = FakeBridge()
-    with _Server(b, FakeState()) as s:
-        code, body = s.post("/api/resync", {})
+    with _Server(b, FakeState()) as srv:
+        code, body = srv.post("/api/resync", {})
     assert code == 200 and body["ok"] is True
     assert ("resync",) in b.calls
 
 
 def test_beatsnap_out_of_range_returns_400():
-    # Server-side range check (review NIT fix): a bad index is rejected
-    # with 400, and no beatsnap command reaches the bridge.
-    b = FakeBridge()
-    with _Server(b, FakeState()) as s:
+    # Server-side range check: a bad index is rejected with 400, and no
+    # beatsnap write reaches state.
+    st = FakeState()
+    with _Server(FakeBridge(), st) as srv:
         try:
-            s.post("/api/beatsnap", {"index": 99})
+            srv.post("/api/beatsnap", {"index": 99})
             assert False, "expected 400"
         except urllib.error.HTTPError as e:
             assert e.code == 400
-    assert not any(c[0] == "beatsnap" for c in b.calls)
+    assert not any(c[0] == "beatsnap" for c in st.calls)
 
 
 def test_tempo_clamped_server_side():
     # Server clamps to Arena's 20..500 range even if the client sends junk.
     b = FakeBridge()
-    with _Server(b, FakeState()) as s:
-        _, hi = s.post("/api/tempo", {"bpm": 9999})
-        _, lo = s.post("/api/tempo", {"bpm": 1})
+    with _Server(b, FakeState()) as srv:
+        _, hi = srv.post("/api/tempo", {"bpm": 9999})
+        _, lo = srv.post("/api/tempo", {"bpm": 1})
     assert hi["bpm"] == 500.0
     assert lo["bpm"] == 20.0
 
 
 def test_clip_beatsnap_index_out_of_range_is_noop():
-    # The bridge guards against bad indices (no OSC sent). Verified at the
-    # bridge level so the panel never pushes a nonsense choice to Arena.
-    import resolume_out
-    br = resolume_out.ResolumeBridge(enabled=False)
-    br.set_clip_beatsnap(99)   # out of range -> must not raise
-    br.set_clip_beatsnap(-1)
-    br.close()
+    # Beatsnap is REST/state now. An out-of-range index is rejected by the
+    # bounds guard before any network call (returns False, never raises),
+    # even against a dead Arena.
+    import resolume_state
+    st = resolume_state.ResolumeState(rest_base="http://127.0.0.1:9/api/v1",
+                                      timeout=0.3)
+    assert st.set_clip_beatsnap(99) is False
+    assert st.set_clip_beatsnap(-1) is False
 
 
 def test_clip_names_returns_grid():

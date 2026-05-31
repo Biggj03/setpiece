@@ -222,13 +222,15 @@ class PanelHandler(BaseHTTPRequestHandler):
 
             elif path == "/api/beatsnap":
                 # Quantise clip triggers to the bar/beat grid. index into
-                # ResolumeBridge.BEATSNAP_OPTIONS (0=None .. 4='1 Bar').
+                # ResolumeState.BEATSNAP_OPTIONS (0=None .. 4='1 Bar').
+                # Set via REST PUT /parameter/by-id (state), not OSC: it's a
+                # setup-time ParamChoice and OSC doesn't move it.
                 index = int(d.get("index", 4))
-                if not (0 <= index < len(b.BEATSNAP_OPTIONS)):
+                if not (0 <= index < len(s.BEATSNAP_OPTIONS)):
                     self._json({"ok": False, "error": "beatsnap index out of range"}, 400)
                 else:
-                    b.set_clip_beatsnap(index)
-                    self._json({"ok": True, "index": index})
+                    ok = s.set_clip_beatsnap(index)
+                    self._json({"ok": ok, "index": index})
 
             elif path == "/api/resync":
                 # Re-align Arena's clock phase to 'now' — tap on the '1'.
