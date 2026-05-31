@@ -72,7 +72,7 @@ class FakeState:
         return effect == "HueRotate" and param == "Hue Rotate"
     def list_effects(self, layer=None):
         return [{"name": "HueRotate", "display_name": "HueRotate",
-                 "bypassed": False,
+                 "bypassed": False, "bypass_id": 7,
                  "params": [{"name": "Hue Rotate", "id": 42,
                              "value": 0.0, "min": 0.0, "max": 1.0}]}]
     def set_param_by_id(self, pid, value):
@@ -217,6 +217,8 @@ def test_effects_endpoint_lists_rack():
     assert code == 200 and body["ok"] is True
     assert body["effects"][0]["name"] == "HueRotate"
     assert body["effects"][0]["params"][0]["id"] == 42
+    # bypass id is surfaced so the FX tab can render a bypass toggle.
+    assert body["effects"][0]["bypass_id"] == 7
 
 
 def test_param_endpoint_drives_by_id():
@@ -225,6 +227,17 @@ def test_param_endpoint_drives_by_id():
         code, body = srv.post("/api/param", {"id": 42, "value": 0.5})
     assert code == 200 and body["ok"] is True and body["value"] == 0.5
     assert ("param", 42, 0.5) in st.calls
+
+
+def test_param_endpoint_accepts_bool_for_bypass():
+    # The bypass toggle drives the boolean bypass param via the same
+    # /api/param path. value comes in as JSON true; the endpoint floats it
+    # (True -> 1.0) and forwards — the bypass write still lands.
+    st = FakeState()
+    with _Server(FakeBridge(), st) as srv:
+        code, body = srv.post("/api/param", {"id": 7, "value": True})
+    assert code == 200 and body["ok"] is True
+    assert any(c[0] == "param" and c[1] == 7 for c in st.calls)
 
 
 def test_effect_endpoint_unresolved_returns_ok_false():

@@ -264,8 +264,12 @@ class PanelHandler(BaseHTTPRequestHandler):
             elif path == "/api/param":
                 # Drive a param directly by its (already-discovered) id — the
                 # FX faders use this so a drag doesn't re-resolve by name.
+                # Preserve booleans (the bypass toggle sends true/false, which
+                # Arena's ParamBoolean wants verbatim — NOT floated to 1.0/0.0,
+                # which it rejects); float everything else (ParamRange faders).
                 pid = d.get("id")
-                value = float(d.get("value", 0.0))
+                raw = d.get("value", 0.0)
+                value = raw if isinstance(raw, bool) else float(raw)
                 ok = s.set_param_by_id(pid, value)
                 self._json({"ok": ok, "id": pid, "value": value})
 

@@ -147,10 +147,16 @@ class ResolumeState:
                 })
             if not drivable:
                 continue
+            # The bypass param is a ParamBoolean wrapper, so its id lives on
+            # the dict (not unwrapped by _param). Expose it so the FX tab can
+            # toggle bypass via set_param_by_id({"value": true/false}).
+            byp = eff.get("bypassed")
+            bypass_id = byp.get("id") if isinstance(byp, dict) else None
             out.append({
                 "name": _param(eff, "name"),
                 "display_name": _param(eff, "display_name") or _param(eff, "name"),
                 "bypassed": bool(_param(eff, "bypassed")),
+                "bypass_id": bypass_id,
                 "params": drivable,
             })
         return out

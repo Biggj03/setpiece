@@ -343,9 +343,29 @@ function loadEffects() {
       var box = document.createElement("div");
       box.className = "fx-effect" + (eff.bypassed ? " bypassed" : "");
       var head = document.createElement("div");
-      head.className = "fx-name";
-      head.textContent = (eff.display_name || eff.name) +
-        (eff.bypassed ? "  (bypassed)" : "");
+      head.className = "fx-head";
+      var nm = document.createElement("span");
+      nm.className = "fx-name";
+      nm.textContent = eff.display_name || eff.name;
+      head.appendChild(nm);
+      // Bypass toggle — kills the effect without losing its fader settings.
+      // Lit = active, dim = bypassed. Drives the boolean bypass param by id.
+      if (eff.bypass_id != null) {
+        var tog = document.createElement("button");
+        tog.className = "fx-bypass" + (eff.bypassed ? "" : " on");
+        tog.textContent = eff.bypassed ? "OFF" : "ON";
+        tog.onclick = function () {
+          var nowOn = box.classList.contains("bypassed");  // currently bypassed -> turning ON
+          var bypass = !nowOn;                             // toggle target bypass state
+          // optimistic UI
+          box.classList.toggle("bypassed", bypass);
+          tog.classList.toggle("on", !bypass);
+          tog.textContent = bypass ? "OFF" : "ON";
+          api("param", { id: eff.bypass_id, value: bypass })
+            .catch(function (e) { showErr("bypass: " + e); });
+        };
+        head.appendChild(tog);
+      }
       box.appendChild(head);
       eff.params.forEach(function (p) {
         box.appendChild(buildFxParam(p));
