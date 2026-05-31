@@ -108,11 +108,21 @@ It prints the URL(s) to open on a phone/tablet on the same network, runs a
 pre-flight check (is Arena up? webserver + OSC enabled? clips loaded?), and
 serves a touch panel with:
 
+**MIX tab** — sculpt the live look:
 - **MASTER OUTPUT** fader — smooth full-output fade between tracks
 - **PANIC BLACK** — instant kill of all output, reconciled with Arena's real state
+- **TAP TEMPO** + **BEATSNAP** (off / 1 bar / ½ / ¼) + **RESYNC** — cuts land
+  on the bar, Arena's clock rides your tapped tempo
 - **per-layer** opacity faders, mute, and clear
 - **crossfader**
-- a **clip grid** with live thumbnails (tap to fire), adjustable density
+
+**CLIPS tab** — a **clip grid** with live thumbnails (tap to fire) and
+adjustable density (3–6 columns).
+
+**FX tab** — the live effect rack, **auto-discovered** from the running
+composition (so it works on any project): a fader per effect parameter,
+plus a per-effect **bypass** toggle that kills an effect without losing
+its settings.
 
 Arena setup: Preferences → OSC (input on, port 7000) + Webserver (on, port
 8080). The panel auto-reconnects if Arena restarts mid-set. Point it at
