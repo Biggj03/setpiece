@@ -177,6 +177,74 @@ function initCrossfader() {
   });
 }
 
+// ── tempo: tap, beatsnap, resync ──
+var tapTimes = [];          // recent tap timestamps (ms)
+var tapClearTimer = null;   // clears tapTimes after taps stop (readout resyncs)
+var beatsnapPending = null; // index we just set (suppress poll flicker)
+
+function initTempo() {
+  var tap = document.getElementById("tap");
+  if (tap) tap.addEventListener("click", onTap);
+  var resync = document.getElementById("resync");
+  if (resync) resync.addEventListener("click", function () {
+    api("resync", {}).catch(function (e) { showErr("resync: " + e); });
+  });
+  document.querySelectorAll(".bsbtn").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var idx = parseInt(btn.getAttribute("data-index"), 10);
+      beatsnapPending = idx;
+      paintBeatsnap(idx);
+      api("beatsnap", { index: idx })
+        .then(function () { beatsnapPending = null; })
+        .catch(function (e) { beatsnapPending = null; showErr("beatsnap: " + e); });
+    });
+  });
+}
+
+function onTap() {
+  var now = Date.now();
+  // A gap > 2s starts a fresh count (new tempo).
+  if (tapTimes.length && now - tapTimes[tapTimes.length - 1] > 2000) {
+    tapTimes = [];
+  }
+  tapTimes.push(now);
+  if (tapTimes.length > 8) tapTimes.shift();   // rolling window
+  // Once tapping stops, drop the tap history so reconcileTempo resumes
+  // syncing the BPM readout from Arena (the review's stale-readout fix).
+  if (tapClearTimer) clearTimeout(tapClearTimer);
+  tapClearTimer = setTimeout(function () { tapTimes = []; }, 3000);
+  if (tapTimes.length >= 2) {
+    // Average interval across the window -> BPM.
+    var span = tapTimes[tapTimes.length - 1] - tapTimes[0];
+    var bpm = 60000 / (span / (tapTimes.length - 1));
+    if (bpm >= 20 && bpm <= 500) {
+      var rounded = Math.round(bpm * 10) / 10;
+      var el = document.getElementById("bpm-val");
+      if (el) el.textContent = rounded.toFixed(1) + " BPM";
+      api("tempo", { bpm: rounded }).catch(function (e) { showErr("tempo: " + e); });
+    }
+  }
+}
+
+function paintBeatsnap(idx) {
+  document.querySelectorAll(".bsbtn").forEach(function (b) {
+    b.classList.toggle("on", parseInt(b.getAttribute("data-index"), 10) === idx);
+  });
+}
+
+function reconcileTempo(snap) {
+  if (!snap) return;
+  // BPM readout (only when the operator isn't mid-tap).
+  if (typeof snap.tempo === "number" && !tapTimes.length) {
+    var el = document.getElementById("bpm-val");
+    if (el) el.textContent = snap.tempo.toFixed(1) + " BPM";
+  }
+  // Beatsnap selector reflects Arena unless we just changed it.
+  if (beatsnapPending === null && typeof snap.beatsnap === "number") {
+    paintBeatsnap(snap.beatsnap);
+  }
+}
+
 // ── CLIPS grid ──
 function initClipLayerPicker(s) {
   var sel = document.getElementById("clip-layer");

@@ -211,6 +211,30 @@ class PanelHandler(BaseHTTPRequestHandler):
                 b.set_composition_master(level)
                 self._json({"ok": True, "level": level})
 
+            elif path == "/api/tempo":
+                # Push BPM to Arena's clock so beat-snapped triggering and
+                # audio-reactive effects ride the operator's tap tempo.
+                # Clamp to Arena's tempo ParamRange (20..500) server-side so
+                # a direct API caller can't push a nonsense value.
+                bpm = max(20.0, min(500.0, float(d.get("bpm", 0.0))))
+                b.set_tempo(bpm)
+                self._json({"ok": True, "bpm": bpm})
+
+            elif path == "/api/beatsnap":
+                # Quantise clip triggers to the bar/beat grid. index into
+                # ResolumeBridge.BEATSNAP_OPTIONS (0=None .. 4='1 Bar').
+                index = int(d.get("index", 4))
+                if not (0 <= index < len(b.BEATSNAP_OPTIONS)):
+                    self._json({"ok": False, "error": "beatsnap index out of range"}, 400)
+                else:
+                    b.set_clip_beatsnap(index)
+                    self._json({"ok": True, "index": index})
+
+            elif path == "/api/resync":
+                # Re-align Arena's clock phase to 'now' — tap on the '1'.
+                b.resync_downbeat()
+                self._json({"ok": True})
+
             elif path == "/api/connect_clip":
                 layer = int(d.get("layer", 1))
                 col = int(d.get("column", 1))

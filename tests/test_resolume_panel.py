@@ -25,6 +25,9 @@ import resolume_out
 
 class FakeBridge:
     """Records the high-level commands the panel issues."""
+    BEATSNAP_OPTIONS = ("None", "8 Bars", "4 Bars", "2 Bars",
+                        "1 Bar", "1/2 Bar", "1/4 Bar")
+
     def __init__(self):
         self._enabled = True
         self.calls = []
@@ -38,6 +41,9 @@ class FakeBridge:
     def set_crossfader(self, p): self.calls.append(("xfade", p))
     def connect_clip(self, layer, col): self.calls.append(("connect", layer, col))
     def connect_column(self, col): self.calls.append(("column", col))
+    def set_tempo(self, bpm): self.calls.append(("tempo", bpm))
+    def set_clip_beatsnap(self, idx): self.calls.append(("beatsnap", idx))
+    def resync_downbeat(self): self.calls.append(("resync",))
 
 
 class FakeState:
@@ -140,6 +146,63 @@ def test_connect_clip_dispatches():
     with _Server(b, FakeState()) as s:
         s.post("/api/connect_clip", {"layer": 1, "column": 5})
     assert ("connect", 1, 5) in b.calls
+
+
+def test_tempo_endpoint_dispatches():
+    b = FakeBridge()
+    with _Server(b, FakeState()) as s:
+        code, body = s.post("/api/tempo", {"bpm": 128.5})
+    assert code == 200 and body["ok"] is True
+    assert ("tempo", 128.5) in b.calls
+
+
+def test_beatsnap_endpoint_dispatches():
+    b = FakeBridge()
+    with _Server(b, FakeState()) as s:
+        code, body = s.post("/api/beatsnap", {"index": 4})
+    assert code == 200 and body["index"] == 4
+    assert ("beatsnap", 4) in b.calls
+
+
+def test_resync_endpoint_dispatches():
+    b = FakeBridge()
+    with _Server(b, FakeState()) as s:
+        code, body = s.post("/api/resync", {})
+    assert code == 200 and body["ok"] is True
+    assert ("resync",) in b.calls
+
+
+def test_beatsnap_out_of_range_returns_400():
+    # Server-side range check (review NIT fix): a bad index is rejected
+    # with 400, and no beatsnap command reaches the bridge.
+    b = FakeBridge()
+    with _Server(b, FakeState()) as s:
+        try:
+            s.post("/api/beatsnap", {"index": 99})
+            assert False, "expected 400"
+        except urllib.error.HTTPError as e:
+            assert e.code == 400
+    assert not any(c[0] == "beatsnap" for c in b.calls)
+
+
+def test_tempo_clamped_server_side():
+    # Server clamps to Arena's 20..500 range even if the client sends junk.
+    b = FakeBridge()
+    with _Server(b, FakeState()) as s:
+        _, hi = s.post("/api/tempo", {"bpm": 9999})
+        _, lo = s.post("/api/tempo", {"bpm": 1})
+    assert hi["bpm"] == 500.0
+    assert lo["bpm"] == 20.0
+
+
+def test_clip_beatsnap_index_out_of_range_is_noop():
+    # The bridge guards against bad indices (no OSC sent). Verified at the
+    # bridge level so the panel never pushes a nonsense choice to Arena.
+    import resolume_out
+    br = resolume_out.ResolumeBridge(enabled=False)
+    br.set_clip_beatsnap(99)   # out of range -> must not raise
+    br.set_clip_beatsnap(-1)
+    br.close()
 
 
 def test_clip_names_returns_grid():

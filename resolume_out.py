@@ -285,8 +285,23 @@ class ResolumeBridge:
 
     def resync_downbeat(self) -> None:
         """Re-align Resolume's clock phase to 'now' (call on a confident
-        downbeat from the beat detector)."""
+        downbeat from the beat detector, or a manual tap on the '1')."""
         self._send("/composition/tempocontroller/resync", 1)
+
+    # Composition clip-beatsnap choices, in Arena's option order. The index
+    # is what the OSC choice param takes. "1 Bar" = cuts land on the bar.
+    BEATSNAP_OPTIONS = ("None", "8 Bars", "4 Bars", "2 Bars",
+                        "1 Bar", "1/2 Bar", "1/4 Bar")
+
+    def set_clip_beatsnap(self, index: int) -> None:
+        """Set how clip triggers quantise to the tempo grid. `index` is into
+        BEATSNAP_OPTIONS (0=None ... 4='1 Bar' ... 6='1/4 Bar'). With snap
+        on, a fired clip waits for the next bar/beat boundary instead of
+        cutting instantly — this is what makes cuts land 'on the 1'."""
+        i = int(index)
+        if i < 0 or i >= len(self.BEATSNAP_OPTIONS):
+            return
+        self._send("/composition/clipbeatsnap", i)
 
     # -- control ------------------------------------------------------------
 

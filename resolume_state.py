@@ -175,7 +175,7 @@ class ResolumeState:
         """
         out = {
             "reachable": False, "product": "", "master": None,
-            "crossfader": None, "tempo": None, "layers": [],
+            "crossfader": None, "tempo": None, "beatsnap": None, "layers": [],
         }
         comp = self._get("composition")
         if not comp:
@@ -188,6 +188,10 @@ class ResolumeState:
         out["crossfader"] = _param(xf, "phase") if isinstance(xf, dict) else None
         tc = comp.get("tempocontroller") or {}
         out["tempo"] = _param(tc, "tempo") if isinstance(tc, dict) else None
+        # Clip beatsnap is a choice param: report its index so the panel's
+        # selector can reflect Arena's real setting.
+        bs = comp.get("clipbeatsnap")
+        out["beatsnap"] = bs.get("index") if isinstance(bs, dict) else None
 
         for i, layer in enumerate(comp.get("layers") or [], start=1):
             video = layer.get("video") if isinstance(layer.get("video"), dict) else {}

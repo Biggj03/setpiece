@@ -34,6 +34,22 @@
       </div>
       <input id="master" type="range" min="0" max="1" step="0.01" value="1">
     </div>
+    <div id="tempo-wrap">
+      <div class="tempo-row">
+        <button id="tap" class="tempo-btn">TAP<br>TEMPO</button>
+        <span id="bpm-val">--- BPM</span>
+        <button id="resync" class="tempo-btn">RESYNC<br>&#9654;1</button>
+      </div>
+      <div class="beatsnap-row">
+        <span class="beatsnap-label">BEATSNAP</span>
+        <span id="beatsnap-btns">
+          <button class="bsbtn" data-index="0">OFF</button>
+          <button class="bsbtn" data-index="4">1 BAR</button>
+          <button class="bsbtn" data-index="5">&#189;</button>
+          <button class="bsbtn" data-index="6">&#188;</button>
+        </span>
+      </div>
+    </div>
     <div id="layers"></div>
     <div id="xfade-wrap">
       <div class="xfade-label"><span>A</span><span>CROSSFADER</span><span>B</span></div>
