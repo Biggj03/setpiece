@@ -247,3 +247,31 @@ input[type=range]::-webkit-slider-thumb {
   font-size: 14px; color: var(--text); line-height: 1.25; font-weight: 600;
   display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
 }
+
+/* ── FX tab ── */
+#fx-toolbar {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 12px; gap: 12px;
+}
+#fx-hint { font-size: 13px; color: var(--muted); }
+.fx-effect {
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: 10px; padding: 12px 14px; margin-bottom: 12px;
+}
+.fx-effect.bypassed { opacity: 0.5; }
+.fx-name {
+  font-weight: 700; font-size: 15px; color: var(--text);
+  margin-bottom: 8px; letter-spacing: 0.02em;
+}
+.fx-param {
+  display: flex; align-items: center; gap: 10px; margin: 6px 0;
+}
+.fx-plabel {
+  flex: 0 0 38%; font-size: 13px; color: var(--muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.fx-param input[type=range] { flex: 1 1 auto; }
+.fx-pval {
+  flex: 0 0 44px; text-align: right; font-size: 13px;
+  color: var(--text); font-variant-numeric: tabular-nums;
+}

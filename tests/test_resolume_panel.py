@@ -70,6 +70,14 @@ class FakeState:
         self.calls.append(("effect", effect, param, value, layer))
         # Mimic the real method: unknown effect/param can't resolve.
         return effect == "HueRotate" and param == "Hue Rotate"
+    def list_effects(self, layer=None):
+        return [{"name": "HueRotate", "display_name": "HueRotate",
+                 "bypassed": False,
+                 "params": [{"name": "Hue Rotate", "id": 42,
+                             "value": 0.0, "min": 0.0, "max": 1.0}]}]
+    def set_param_by_id(self, pid, value):
+        self.calls.append(("param", pid, value))
+        return pid is not None and str(pid).isdigit()
 
 
 # ── server harness ─────────────────────────────────────────────────────
@@ -200,6 +208,23 @@ def test_effect_endpoint_missing_args_returns_400():
         except urllib.error.HTTPError as e:
             assert e.code == 400
     assert not any(c[0] == "effect" for c in st.calls)
+
+
+def test_effects_endpoint_lists_rack():
+    st = FakeState()
+    with _Server(FakeBridge(), st) as srv:
+        code, body = srv.post("/api/effects", {})
+    assert code == 200 and body["ok"] is True
+    assert body["effects"][0]["name"] == "HueRotate"
+    assert body["effects"][0]["params"][0]["id"] == 42
+
+
+def test_param_endpoint_drives_by_id():
+    st = FakeState()
+    with _Server(FakeBridge(), st) as srv:
+        code, body = srv.post("/api/param", {"id": 42, "value": 0.5})
+    assert code == 200 and body["ok"] is True and body["value"] == 0.5
+    assert ("param", 42, 0.5) in st.calls
 
 
 def test_effect_endpoint_unresolved_returns_ok_false():

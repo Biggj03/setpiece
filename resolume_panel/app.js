@@ -318,6 +318,80 @@ function loadClips() {
   }).catch(function (e) { showErr("clip_names: " + e); });
 }
 
+// ── FX tab: dynamic effect faders ──
+// Effects/params are composition-specific, so the tab DISCOVERS them from
+// /api/effects and renders one fader per drivable (ParamRange) param. Each
+// fader drives by the param's live id via /api/param, throttled, with a
+// per-fader drag guard (mirrors the master fader's masterDragging pattern).
+var fxDragging = {};   // param id -> true while held
+
+function initFx() {
+  var btn = document.getElementById("fx-refresh");
+  if (btn) btn.addEventListener("click", loadEffects);
+}
+
+function loadEffects() {
+  api("effects", {}).then(function (res) {
+    var wrap = document.getElementById("fxlist");
+    var effects = (res && res.effects) || [];
+    wrap.innerHTML = "";
+    if (!effects.length) {
+      wrap.innerHTML = '<div class="cell empty">no effects on the composition</div>';
+      return;
+    }
+    effects.forEach(function (eff) {
+      var box = document.createElement("div");
+      box.className = "fx-effect" + (eff.bypassed ? " bypassed" : "");
+      var head = document.createElement("div");
+      head.className = "fx-name";
+      head.textContent = (eff.display_name || eff.name) +
+        (eff.bypassed ? "  (bypassed)" : "");
+      box.appendChild(head);
+      eff.params.forEach(function (p) {
+        box.appendChild(buildFxParam(p));
+      });
+      wrap.appendChild(box);
+    });
+  }).catch(function (e) { showErr("effects: " + e); });
+}
+
+function buildFxParam(p) {
+  var row = document.createElement("div");
+  row.className = "fx-param";
+  var label = document.createElement("span");
+  label.className = "fx-plabel";
+  label.textContent = p.name;
+  var f = document.createElement("input");
+  f.type = "range";
+  f.min = (p.min == null ? 0 : p.min);
+  f.max = (p.max == null ? 1 : p.max);
+  f.step = "0.01";
+  f.value = (p.value == null ? 0 : p.value);
+  var val = document.createElement("span");
+  val.className = "fx-pval";
+  val.textContent = fmtFx(p.value);
+  f.addEventListener("input", function () {
+    var v = parseFloat(f.value);
+    val.textContent = fmtFx(v);
+    apiThrottled("fx-" + p.id, "param", { id: p.id, value: v });
+  });
+  ["touchstart", "mousedown"].forEach(function (ev) {
+    f.addEventListener(ev, function () { fxDragging[p.id] = true; });
+  });
+  ["touchend", "mouseup"].forEach(function (ev) {
+    f.addEventListener(ev, function () { fxDragging[p.id] = false; });
+  });
+  row.appendChild(label);
+  row.appendChild(f);
+  row.appendChild(val);
+  return row;
+}
+
+function fmtFx(v) {
+  if (typeof v !== "number") return "--";
+  return (Math.round(v * 100) / 100).toString();
+}
+
 // ── tabs ──
 function initTabs() {
   var tabs = document.querySelectorAll(".tab");
@@ -328,7 +402,9 @@ function initTabs() {
       t.classList.add("tab-active");
       document.getElementById("tab-mix").classList.toggle("hidden", ACTIVE_TAB !== "mix");
       document.getElementById("tab-clips").classList.toggle("hidden", ACTIVE_TAB !== "clips");
+      document.getElementById("tab-fx").classList.toggle("hidden", ACTIVE_TAB !== "fx");
       if (ACTIVE_TAB === "clips") { initClipLayerPicker(STATE); loadClips(); }
+      if (ACTIVE_TAB === "fx") loadEffects();
     };
   });
 }
@@ -388,6 +464,6 @@ function startPolling() {
 }
 
 document.addEventListener("DOMContentLoaded", function () {
-  try { initTabs(); initPanic(); initMaster(); initCrossfader(); initGridDensity(); startPolling(); }
+  try { initTabs(); initPanic(); initMaster(); initCrossfader(); initGridDensity(); initFx(); startPolling(); }
   catch (e) { showErr("init: " + e); }
 });

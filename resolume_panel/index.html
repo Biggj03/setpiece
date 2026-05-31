@@ -20,6 +20,7 @@
     <div id="tabs">
       <button class="tab tab-active" data-tab="mix">MIX</button>
       <button class="tab" data-tab="clips">CLIPS</button>
+      <button class="tab" data-tab="fx">FX</button>
     </div>
     <button id="panic" class="panic">PANIC<br>BLACK</button>
   </header>
@@ -69,6 +70,14 @@
       <span id="clip-hint">tap a loaded cell to fire it</span>
     </div>
     <div id="clipgrid"></div>
+  </section>
+
+  <section id="tab-fx" class="tabpane hidden">
+    <div id="fx-toolbar">
+      <span id="fx-hint">live effects on the composition — drag to drive</span>
+      <button id="fx-refresh" class="lbtn">REFRESH</button>
+    </div>
+    <div id="fxlist"></div>
   </section>
 
   <script src="/app.js"></script>

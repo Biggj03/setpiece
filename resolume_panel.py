@@ -254,6 +254,21 @@ class PanelHandler(BaseHTTPRequestHandler):
                     self._json({"ok": ok, "effect": effect,
                                 "param": param, "value": value})
 
+            elif path == "/api/effects":
+                # Discover the live effect rack so the FX tab can render a
+                # fader per drivable (ParamRange) param. `layer` optional.
+                layer = d.get("layer")
+                layer = int(layer) if layer is not None else None
+                self._json({"ok": True, "effects": s.list_effects(layer=layer)})
+
+            elif path == "/api/param":
+                # Drive a param directly by its (already-discovered) id — the
+                # FX faders use this so a drag doesn't re-resolve by name.
+                pid = d.get("id")
+                value = float(d.get("value", 0.0))
+                ok = s.set_param_by_id(pid, value)
+                self._json({"ok": ok, "id": pid, "value": value})
+
             elif path == "/api/connect_clip":
                 layer = int(d.get("layer", 1))
                 col = int(d.get("column", 1))

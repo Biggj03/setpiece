@@ -107,6 +107,67 @@ class ResolumeState:
                     return pinfo.get("id")
         return None
 
+    def list_effects(self, layer=None) -> list:
+        """Discover the live effect rack so the panel can render a fader per
+        drivable param. Returns:
+          [{"name": str, "display_name": str, "bypassed": bool,
+            "params": [{"name": str, "id": int, "value": float,
+                        "min": float, "max": float}, ...]}, ...]
+
+        Only ParamRange params are returned (the 0..1 ones a fader drives) —
+        ParamChoice/ParamState aren't sliders. Composition rack by default,
+        layer N's rack when given. Empty list on a dead Arena (never raises).
+        Effects/params are composition-specific, so the panel must discover
+        them live rather than hardcode — this is that discovery."""
+        if layer is None:
+            host = self._get("composition")
+        else:
+            host = self._get(f"composition/layers/{int(layer)}")
+        if not host:
+            return []
+        video = host.get("video") if isinstance(host.get("video"), dict) else {}
+        out = []
+        for eff in (video.get("effects") or []):
+            params = eff.get("params") if isinstance(eff.get("params"), dict) else {}
+            drivable = []
+            for pname, pinfo in params.items():
+                if not isinstance(pinfo, dict):
+                    continue
+                if pinfo.get("valuetype") != "ParamRange":
+                    continue
+                pid = pinfo.get("id")
+                if pid is None:
+                    continue
+                drivable.append({
+                    "name": pname,
+                    "id": pid,
+                    "value": pinfo.get("value"),
+                    "min": pinfo.get("min", 0.0),
+                    "max": pinfo.get("max", 1.0),
+                })
+            if not drivable:
+                continue
+            out.append({
+                "name": _param(eff, "name"),
+                "display_name": _param(eff, "display_name") or _param(eff, "name"),
+                "bypassed": bool(_param(eff, "bypassed")),
+                "params": drivable,
+            })
+        return out
+
+    def set_param_by_id(self, param_id, value) -> bool:
+        """Public: set any Arena parameter by its (live) id. Thin wrapper on
+        the by-id PUT so the panel's FX faders can drive a param directly
+        once list_effects has given them its id — no per-drag name re-resolve.
+        Returns True on success, False otherwise. Never raises."""
+        if param_id is None:
+            return False
+        try:
+            pid = int(param_id)
+        except (TypeError, ValueError):
+            return False
+        return self._put_param_by_id(pid, value)
+
     def set_effect_param(self, effect_name, param_name, value, layer=None):
         """Set an effect parameter by (effect name, param name) -> resolve
         live id -> PUT by id. `value` is whatever the param takes (0..1 for a
