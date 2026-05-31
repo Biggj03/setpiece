@@ -164,6 +164,15 @@ def test_connect_clip_dispatches():
     assert ("connect", 1, 5) in b.calls
 
 
+def test_fire_column_dispatches():
+    # Scene row: firing a column triggers that scene across all layers.
+    b = FakeBridge()
+    with _Server(b, FakeState()) as s:
+        code, body = s.post("/api/fire_column", {"column": 3})
+    assert code == 200 and body["ok"] is True
+    assert ("column", 3) in b.calls
+
+
 def test_tempo_endpoint_dispatches():
     b = FakeBridge()
     with _Server(b, FakeState()) as s:

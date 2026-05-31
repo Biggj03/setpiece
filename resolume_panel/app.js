@@ -245,6 +245,33 @@ function reconcileTempo(snap) {
   }
 }
 
+// ── CLIPS: scene (column) row ──
+// Firing a column triggers that scene across ALL layers in one tap — a core
+// VJ move. Column count is derived from the live snapshot (max columns over
+// the layers), so it tracks the comp without a dedicated endpoint.
+function renderScenes(s) {
+  var row = document.getElementById("scene-row");
+  if (!row) return;
+  var layers = (s && s.layers) || [];
+  var n = 0;
+  layers.forEach(function (L) { if (L.columns > n) n = L.columns; });
+  // Rebuild only when the count changes (avoids clobbering taps each poll).
+  if (row.childElementCount === n) return;
+  row.innerHTML = "";
+  for (var c = 1; c <= n; c++) {
+    (function (col) {
+      var b = document.createElement("button");
+      b.className = "scene-btn";
+      b.textContent = col;
+      b.onclick = function () {
+        api("fire_column", { column: col })
+          .catch(function (e) { showErr("scene: " + e); });
+      };
+      row.appendChild(b);
+    })(c);
+  }
+}
+
 // ── CLIPS grid ──
 function initClipLayerPicker(s) {
   var sel = document.getElementById("clip-layer");
@@ -423,7 +450,7 @@ function initTabs() {
       document.getElementById("tab-mix").classList.toggle("hidden", ACTIVE_TAB !== "mix");
       document.getElementById("tab-clips").classList.toggle("hidden", ACTIVE_TAB !== "clips");
       document.getElementById("tab-fx").classList.toggle("hidden", ACTIVE_TAB !== "fx");
-      if (ACTIVE_TAB === "clips") { initClipLayerPicker(STATE); loadClips(); }
+      if (ACTIVE_TAB === "clips") { initClipLayerPicker(STATE); renderScenes(STATE); loadClips(); }
       if (ACTIVE_TAB === "fx") loadEffects();
     };
   });
@@ -472,7 +499,7 @@ function poll() {
   api("state", {}).then(function (snap) {
     STATE = snap; clearErr(); paintStatus(snap); renderLayers(snap);
     reconcilePanic(snap);
-    if (ACTIVE_TAB === "clips") initClipLayerPicker(snap);
+    if (ACTIVE_TAB === "clips") { initClipLayerPicker(snap); renderScenes(snap); }
   }).catch(function (e) {
     paintStatus({ reachable: false }); showErr("state: " + e);
   });
