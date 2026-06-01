@@ -292,9 +292,9 @@ def _extract_phrases(words: list[str]) -> tuple[set[str], list[str]]:
 
 def _folder_tag(name: str) -> Optional[str]:
     """Turn a FOLDER name into ONE canonical tag. Performer / studio /
-    category folders ('Abigaiil.Morris', 'BBW', 'Big.Tit.Babes') are the
+    category folders ('Artist.Name', 'Some.Category') are the
     richest signal in a well-organised library, but the normal per-token
-    split shreds them into useless fragments ('abigaiil' + 'morris').
+    split shreds them into useless fragments ('artist' + 'name').
     This keeps the whole folder name as a single tag: lowercased,
     separators (. _ space) collapsed to '-'. Returns None for names that
     aren't useful as a tag (empty, too long, all-digits, pure noise)."""
@@ -323,8 +323,8 @@ def tokenize_path(filepath: str, library_root: Optional[str] = None) -> set[str]
     contract: returns a ``set[str]`` of lowercased, denoised tags.
 
     Folder parts ALSO each yield one whole-folder tag (see _folder_tag),
-    additive on top of the per-token split, so 'Abigaiil.Morris' gives
-    both the precise 'abigaiil-morris' chip and the fuzzy 'abigaiil'."""
+    additive on top of the per-token split, so 'Artist.Name' gives
+    both the precise 'artist-name' chip and the fuzzy 'artist'."""
     p = Path(filepath)
     if library_root:
         try:
@@ -343,7 +343,7 @@ def tokenize_path(filepath: str, library_root: Optional[str] = None) -> set[str]
     # Filenames are descriptive sentences, so splitting them into tokens
     # is right. Folder names are single concepts (performer / studio /
     # category) — running the splitter over THOSE just produces fragment
-    # noise ('big', 'tit', 'morris', 'lh'); folders go through
+    # noise ('artist', 'name', 'some', 'cat'); folders go through
     # _folder_tag below instead, which keeps each as one clean tag.
     raw_words = [w.lower().strip() for w in _SPLIT.split(filename) if w.strip()]
     phrase_tags, _ = _extract_phrases(raw_words)
@@ -473,9 +473,9 @@ class PathTagIndex:
         When the primary substring search finds very few hits AND
         the query is long enough to suggest a typo-tolerant lookup
         would help, falls back to a prefix-of-query search. Example:
-        searching "abigail" returns ~2 hits in the source data, but
-        the corpus has "abigaiil-morris" (typo'd source filename
-        with 19 files). The prefix fallback ("abig%") catches it."""
+        searching "artist" returns ~2 hits in the source data, but
+        the corpus has "artist-naem" (typo'd source filename
+        with 19 files). The prefix fallback ("arti%") catches it."""
         q = (query or "").strip().lower()
         if not q:
             return []

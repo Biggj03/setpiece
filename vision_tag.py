@@ -36,7 +36,7 @@ Storage / safety
 Usage
 -----
     python vision_tag.py                   # library_root from settings.json
-    python vision_tag.py "D:\\Recycle Bin"
+    python vision_tag.py "path/to/your/library"
     python vision_tag.py --dry-run         # scan + plan, no inference
     python vision_tag.py --limit 50        # first 50 only (testing)
     python vision_tag.py --frames 4 --threshold 0.35

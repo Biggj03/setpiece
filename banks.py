@@ -98,7 +98,7 @@ class BankStore:
           * ``""`` (empty string): clear the lock — reroll falls back
             to theme-tag mode. Use for explicit content saves where
             the caller doesn't want anchoring.
-          * ``"D:/Recycle Bin/Ebony"`` (a path): set the lock to that
+          * ``"/library/some-category"`` (a path): set the lock to that
             folder. Use for vertical-press auto-split — reroll then
             re-pulls fresh files FROM that same folder so the user
             stays in the vibe they just picked.

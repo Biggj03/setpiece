@@ -591,7 +591,7 @@ class VJPracticeApp(QMainWindow):
 
         Deliberately only walks the working-set + scratch folders, NOT
         library_root. library_root is a *browse* root and can be a
-        TB-scale archive (e.g. D:\\Recycle Bin with thousands of files) —
+        TB-scale archive (e.g. a library root with thousands of files) —
         blindly transcoding all of it on every boot is wrong. Library
         files get proxies on-demand at load time (load_video queues one),
         and batch_transcode_recent.py is the tiered bulk tool for
@@ -8103,7 +8103,7 @@ class VJPracticeApp(QMainWindow):
     # _compute_body_seek_target hits this on EVERY pad fire — that was
     # the source of the perceived 500 ms latency on bank pad fires when
     # the working-folder used to feel snappy (working files were
-    # already-probed proxies; D:\Recycle Bin sources are cold). One
+    # already-probed proxies; raw library sources are cold). One
     # cache, file-keyed; no eviction needed at the rig's scale (a few
     # hundred unique files in active rotation, each <16 bytes per entry).
     _duration_cache: dict = {}
@@ -9622,7 +9622,7 @@ class VJPracticeApp(QMainWindow):
         }
 
     def _tag_to_banks_action(self, q: str) -> dict:
-        """One-shot: take a query string ("abigail"), find the
+        """One-shot: take a query string ("sunset"), find the
         best-matching path tag, pull EVERY file tagged with it
         across the whole library (NOT just the current folder), and
         auto-split into banks A-H. Hot path for the iPad
@@ -9631,8 +9631,8 @@ class VJPracticeApp(QMainWindow):
         Strategy for picking the "best" tag when multiple match:
           1. Exact match wins (case-insensitive)
           2. Otherwise prefer the tag with the most files (top of
-             search result), so 'abigail' -> 'abigaiil-morris' (19)
-             not 'performer:abigaiil-morris-curvy' (1)."""
+             search result), so 'sunset' -> 'sunset-vol-2' (19)
+             not 'theme:sunset-vol-2-extended' (1)."""
         q = (q or "").strip()
         if not q:
             return {"ok": False, "error": "empty query"}
@@ -9643,8 +9643,8 @@ class VJPracticeApp(QMainWindow):
         if not matches:
             return {"ok": False, "error": f"no tag matches '{q}'"}
         # Pick the tag with the most files. Exact-match was the old
-        # strategy but data quirks (typo'd "abigaiil-morris" has 19
-        # files; exact "abigail" only 1) mean what the user typed
+        # strategy but data quirks (a typo'd folder tag may hold 19
+        # files; the exact query only 1) mean what the user typed
         # rarely IS the canonical tag. They typed it to FIND files,
         # not to literally match. Highest-count gives them files.
         # `matches` is already sorted by count desc; matches[0] wins.
@@ -9652,9 +9652,9 @@ class VJPracticeApp(QMainWindow):
         # Pull EVERY file tagged with best_tag from the global path-tag
         # index. The previous version set the iPad filter + called
         # bank_auto_split, but that snapshot only includes files in the
-        # current folder -- so if you typed "abigail" while sitting in
-        # D:\Recycle Bin root, the bank built from 2 loose files
-        # instead of the 19 in D:\Recycle Bin\Abigaiil.Morris\.
+        # current folder -- so if you typed a query while sitting in
+        # the library root, the bank built from 2 loose files
+        # instead of the 19 in <library>/<some-subfolder>/.
         try:
             tagged_paths = self.path_tags.files_with_all_tags([best_tag])
         except Exception as e:

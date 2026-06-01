@@ -8,6 +8,7 @@ __pycache__/
 # Virtual environments
 venv/
 .venv/
+.venv-*/
 env/
 
 # Tag store / generated data
@@ -37,12 +38,16 @@ saved_searches.json
 # Generated demo clips (run `python make_samples.py` to recreate)
 samples/
 
-# Sanitization audit report (regenerated; contains flagged terms)
-_sanitize_audit_report.md
-
 # Sanitization audit report — lists the scrubbed content terms by design,
 # so it must never be committed to the public repo. Regenerate locally.
 _sanitize_audit_report.md
+
+# Sanitization audit LOCAL extension term-list — holds the user's
+# testbed-library subfolder names (performers, categories) so the audit
+# can catch content-specific leaks the generic in-source denylist can't.
+# These names ARE the sensitive content; never commit. Regenerate locally
+# with the populate helper (see _sanitize_audit.py header).
+_sanitize_audit.extra-terms.txt
 
 # Claude session context — personal notes, iteration log, hard-won lessons.
 # Private; never committed to the public repo.

@@ -652,7 +652,7 @@ function renderPathTags(pt) {
 // Two paths:
 //   1. Type a name + ENTER in the search input -> hits bank/tag_to_banks
 //      which finds best-matching tag, applies as filter, then auto-banks.
-//      ONE action for "I want abigail morris now."
+//      ONE action for "I want this artist now."
 //   2. Tap chips first, then tap AUTO-BANK button -> hits bank/auto_split
 //      which uses whatever filter+folder is currently active.
 function _resetAutoBankHint() {
