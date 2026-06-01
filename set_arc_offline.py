@@ -52,11 +52,82 @@ SIDECAR_VERSION = 1
 # previous section. Keeps offline trend consistent with live trend.
 TREND_DEADBAND_BPM = 2.0
 
+# Octave-correction guard — see fix_bpm_octaves(). Folds suspiciously-low
+# section BPMs ×2 when the rest of the track sits substantially higher,
+# catching autocorrelation half-time lock on bass-heavy material.
+HALFTIME_LOW_BPM = 90.0      # below this is "suspect"
+HALFTIME_MEDIAN_HI = 130.0   # ... if the median sits above this
+HALFTIME_ACCEPT_BAND = 10.0  # doubled value must land within ±this of median
+
 
 def sidecar_for(track_path) -> Path:
     """Sidecar path for a track: '<track>.arc.json' beside the file."""
     p = Path(track_path)
     return p.with_suffix(p.suffix + ".arc.json")
+
+
+def _median(xs: list) -> float:
+    """Stdlib-only median (avoids importing statistics for one call)."""
+    s = sorted(xs)
+    n = len(s)
+    if n == 0:
+        return 0.0
+    mid = n // 2
+    if n % 2 == 1:
+        return float(s[mid])
+    return (float(s[mid - 1]) + float(s[mid])) / 2.0
+
+
+def fix_bpm_octaves(sections, log=None):
+    """Octave-correct guard against the autocorrelation half-time lock.
+
+    Symptom we're catching: a 152-BPM bass track gets one 76-BPM section
+    because the BPM extractor latched onto the half-beat peak instead of
+    the downbeat. That one bad read drags the offline analyzer into
+    labelling the section as a breakdown.
+
+    Heuristic:
+      - Compute the median BPM across all sections in the track.
+      - For each section reading < 90 BPM while the median is > 130 BPM,
+        double it (×2). If the doubled value is within ±10 of the median,
+        accept the fold. Otherwise leave the original AND log the
+        suspicious section — better to flag than silently corrupt a
+        borderline legitimate slow section.
+
+    Does NOT touch sections in tracks whose median is already low: a
+    genuinely slow track shouldn't have its sub-90 readings folded.
+
+    Args:
+      sections: [(start, end, bpm), ...] raw segmenter output.
+      log: optional callable(str) for "fold accepted" / "fold rejected"
+           breadcrumbs. Defaults to logging.getLogger(__name__).info.
+    Returns: new [(start, end, bpm), ...] with octave-corrected BPMs.
+    """
+    if log is None:
+        import logging
+        log = logging.getLogger(__name__).info
+
+    bpms = [float(b) for (_, _, b) in sections if b and float(b) > 0]
+    if len(bpms) < 2:
+        return list(sections)  # nothing to compare against
+    median = _median(bpms)
+    if median <= HALFTIME_MEDIAN_HI:
+        return list(sections)  # track is genuinely slow; don't meddle
+
+    out = []
+    for (s, e, b) in sections:
+        b = float(b)
+        if 0 < b < HALFTIME_LOW_BPM:
+            doubled = b * 2.0
+            if abs(doubled - median) <= HALFTIME_ACCEPT_BAND:
+                log(f"octave fold: {b:.1f} -> {doubled:.1f} "
+                    f"(median {median:.1f})")
+                out.append((s, e, doubled))
+                continue
+            log(f"suspicious low BPM kept: {b:.1f} "
+                f"(median {median:.1f}, doubled would be {doubled:.1f})")
+        out.append((s, e, b))
+    return out
 
 
 def _trend(prev_bpm: Optional[float], bpm: float) -> int:
@@ -152,14 +223,17 @@ def librosa_segmenter(path) -> list:
 
 def analyze_track(path, segmenter: Optional[Callable] = None) -> dict:
     """Full analysis -> sidecar dict (not yet written). Uses `segmenter`
-    (default librosa) to get raw sections, then labels them."""
+    (default librosa) to get raw sections, runs the octave-correct BPM
+    guard (catches autocorrelation half-time lock on bass material),
+    then labels them."""
     seg = segmenter or librosa_segmenter
     raw = seg(path)
+    corrected = fix_bpm_octaves(raw)
     return {
         "version": SIDECAR_VERSION,
         "source": "set_arc_offline",
         "track": Path(path).name,
-        "sections": analyze_sections(raw),
+        "sections": analyze_sections(corrected),
     }
 
 

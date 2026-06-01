@@ -21,6 +21,19 @@ openunmix>=1.2
 # numpy spectral-flux detector.
 BeatNet>=1.1.0
 
+# Offline set-arc analyzer (`set_arc_offline.py`) — segments a track by
+# timbre, reads per-section BPM, classifies phases (opening / build /
+# peak / breakdown), writes a sidecar `<track>.arc.json` the live
+# detector can consume on known tracks.
+#
+# IMPORTANT — pin numpy<2: librosa lazy-imports numba, which has a hard
+# NumPy <=1.26 ceiling as of 2026. Without the pin, `librosa.load`
+# raises ImportError on first call in any env carrying numpy 2.x. Other
+# rig modules use numpy 2.x semantics, so install these into a
+# DEDICATED venv (see SETUP.md "Optional / heavy dependencies").
+librosa>=0.10
+numpy<2
+
 # Anthropic Vision tagger (ai_tagger.py) — optional cloud tagging.
 anthropic>=0.39
 

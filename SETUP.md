@@ -31,6 +31,24 @@ pip install -r requirements-optional.txt
 | BeatNet | PLL beat tracking (higher accuracy than the default detector) |
 | anthropic | the optional cloud Vision tagger |
 | streamdeck | Elgato Stream Deck integration (disabled by default) |
+| librosa | the offline set-arc analyzer (`set_arc_offline.py`) |
+
+#### Analyzer venv (librosa)
+
+Install the offline set-arc analyzer into a **dedicated venv**, not the
+main rig env:
+
+```sh
+python -m venv .venv-analyze
+.venv-analyze\Scripts\pip install -r requirements-optional.txt
+```
+
+librosa depends on numba, which still pins NumPy <=1.26. The main rig
+runs on NumPy 2.x, so mixing the two in one env breaks `librosa.load`
+on first call. Keeping the analyzer in its own venv avoids that
+conflict — run analysis batches there, drop the produced
+`<track>.arc.json` sidecars next to the audio, and the live rig
+consumes them with no librosa dependency at all.
 
 ## 2. System libraries
 
