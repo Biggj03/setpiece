@@ -59,6 +59,16 @@ HALFTIME_LOW_BPM = 90.0      # below this is "suspect"
 HALFTIME_MEDIAN_HI = 130.0   # ... if the median sits above this
 HALFTIME_ACCEPT_BAND = 10.0  # doubled value must land within ±this of median
 
+# Per-frame tempo clamp — see clamp_frame_tempos(). Frames survive within
+# this band of the global tempo estimate OR of its half/double octaves;
+# the gaps BETWEEN those bands are where the classic pulse-ratio noise
+# lives (2/3=0.67 and 3/4=0.75 below the anchor, 4/3=1.33 and 3/2=1.50
+# above — at any octave). 0.8..1.25 is symmetric in log space, and the
+# octave bands it induces (0.4..0.625, 0.8..1.25, 1.6..2.5 of the anchor)
+# never overlap and never admit those ratios.
+DTEMPO_CLAMP_LO = 0.8
+DTEMPO_CLAMP_HI = 1.25
+
 
 def sidecar_for(track_path) -> Path:
     """Sidecar path for a track: '<track>.arc.json' beside the file."""
@@ -130,6 +140,68 @@ def fix_bpm_octaves(sections, log=None):
     return out
 
 
+def clamp_frame_tempos(values, global_bpm: Optional[float],
+                       lo: float = DTEMPO_CLAMP_LO,
+                       hi: float = DTEMPO_CLAMP_HI) -> list:
+    """Drop per-frame tempo estimates that sit at a NON-OCTAVE ratio to
+    the track's global tempo estimate.
+
+    Frames survive inside [a*lo, a*hi] of any octave anchor a in
+    {global/2, global, global*2}; the gaps between those bands hold the
+    classic pulse-ratio noise (2/3, 3/4, 4/3, 3/2 — at any octave) that
+    librosa's per-frame estimator latches onto on polyrhythmic bass
+    material. The motivating failure (2026-06-01 backend check): ~80% of
+    one section's frames latched a sub-pulse at ~0.7x of a 152-BPM bass
+    track, the section MEAN dragged to 115, and a peak-energy stretch
+    read "breakdown".
+
+    Octave-RELATED deviation is deliberately kept, at original values:
+    half- and double-time frames are real musical content (a slow
+    groove's defining dynamic; fast genres' tempo switching), and
+    keeping the whole octave grid also makes the clamp insensitive to
+    the ANCHOR itself octave-locking — observed both ways during 2026-06
+    verification (the anchor doubles on a ~69 BPM trip-hop groove, and
+    halves on ~180 BPM material). Whole-section octave calls remain
+    downstream in fix_bpm_octaves.
+
+    Survivor semantics, pinned deliberately: any octave-coherent
+    evidence outvotes any amount of non-octave noise (the motivating
+    case WAS an 80/20 noise majority). Only when NO frame is
+    octave-coherent does the raw input pass through unchanged, leaving
+    the judgment to downstream logic.
+
+    KNOWN LIMITATION (measured, 2026-06-09 A/B round): material whose
+    tempo content is genuinely bimodal at a NON-octave ratio to the
+    anchor — e.g. a DJ-mix slice switching between ~100 and ~160 BPM
+    against a ~103 anchor (a ~sqrt(2) ratio, mid-gap in any band scheme
+    that excludes 4/3 and 3/2) — gets its off-anchor mode dropped even
+    though it is real music. A side effect of the one-outvotes-all
+    semantics: a section whose only octave-coherent frames are tempogram
+    bleed from a neighboring section reports the neighbor's tempo. Six
+    of seven A/B genres improved or held; one such hyperpop slice
+    degraded. There is deliberately NO auto-guard: no track-level
+    coherence statistic separates helped from hurt tracks (the least
+    anchor-coherent track in the A/B was the biggest win). For known
+    octave-ambiguous material, disable clamping at the segmenter seam
+    (librosa_segmenter(path, clamp=False)).
+
+    Args:
+      values: per-frame tempo estimates for one section (any iterable).
+      global_bpm: track-level tempo estimate anchoring the octave grid,
+        or None/0 to disable clamping.
+    Returns: list of surviving frame tempos (floats), never empty if
+      `values` wasn't.
+    """
+    vals = [float(v) for v in values]
+    g = float(global_bpm or 0.0)
+    if g <= 0 or not vals:
+        return vals
+    anchors = (g / 2.0, g, g * 2.0)
+    kept = [v for v in vals
+            if any(a * lo <= v <= a * hi for a in anchors)]
+    return kept if kept else vals
+
+
 def _trend(prev_bpm: Optional[float], bpm: float) -> int:
     """+1 rising / 0 stable / -1 falling vs the previous section, using the
     same deadband as the live detector. None prev (first section) = 0."""
@@ -173,14 +245,22 @@ def analyze_sections(sections) -> list:
     return out
 
 
-def librosa_segmenter(path) -> list:
+def librosa_segmenter(path, clamp: bool = True) -> list:
     """Default segmenter: librosa beat/tempo + agglomerative segmentation.
 
-    UNVERIFIED HERE: librosa isn't installed in this dev env and there's no
-    audio to test on, so this is best-effort structure pending a live run.
-    The TESTED contract is the seam + analyze_sections + sidecar round-trip
-    (see tests, which use a fake segmenter). Install librosa via
-    requirements-optional.txt to use this for real.
+    The base pipeline was verified on real audio 2026-06-01 (dedicated
+    numpy<2 venv — see requirements-optional.txt for why); the per-frame
+    tempo clamp was added after that and A/B-verified against the
+    pre-clamp baseline across seven real tracks on 2026-06-09: improved
+    or unchanged on six (trap, dnb, bass house, techno, deep dubstep,
+    trip-hop), degraded on one octave-ambiguous hyperpop DJ-mix slice —
+    see the KNOWN LIMITATION note on clamp_frame_tempos.
+    The clamp drops per-frame estimates at non-octave ratios to the
+    track-level tempo before section-averaging — librosa's per-frame
+    estimator latches onto sub-pulses on polyrhythmic bass material, and
+    one bimodal stretch is enough to mislabel a peak section as a
+    breakdown. Pass clamp=False for octave-ambiguous material (wrap it:
+    analyze_track(p, segmenter=lambda q: librosa_segmenter(q, clamp=False))).
 
     Returns [(start_s, end_s, avg_bpm), ...].
     """
@@ -200,6 +280,16 @@ def librosa_segmenter(path) -> list:
     # Per-frame tempo (aggregate=None gives a tempo estimate per frame).
     dtempo = librosa.feature.tempo(onset_envelope=onset_env, sr=sr,
                                    aggregate=None)
+    # Track-level tempo anchor for the per-frame clamp: the same
+    # estimator as dtempo, aggregated over the whole envelope instead of
+    # per-frame — which is what keeps it stable where individual frames
+    # wander onto a sub-pulse. (Its octave can still be wrong on very
+    # fast/slow material; the clamp's octave grid tolerates that.)
+    # global_bpm = 0 disables clamping in clamp_frame_tempos.
+    global_bpm = 0.0
+    if clamp:
+        tempo_g = librosa.feature.tempo(onset_envelope=onset_env, sr=sr)
+        global_bpm = float(np.atleast_1d(tempo_g)[0])
     # Segment the track on timbre (MFCC) into ~8 chunks, then average the
     # local tempo within each chunk.
     mfcc = librosa.feature.mfcc(y=y, sr=sr)
@@ -216,7 +306,11 @@ def librosa_segmenter(path) -> list:
         if e - s < 1.0:
             continue
         mask = (tempo_times >= s) & (tempo_times < e)
-        seg_tempo = float(np.mean(dtempo[mask])) if mask.any() else 0.0
+        if mask.any():
+            kept = clamp_frame_tempos(dtempo[mask], global_bpm)
+            seg_tempo = sum(kept) / len(kept)
+        else:
+            seg_tempo = 0.0
         sections.append((s, e, seg_tempo))
     return sections
 

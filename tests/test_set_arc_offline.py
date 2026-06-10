@@ -171,3 +171,80 @@ def test_analyze_track_octave_guard_fixes_phase_label():
     phases = [s["phase"] for s in data["sections"]]
     # All four sections should read peak now (>=135 BPM each post-fold).
     assert phases == ["peak", "peak", "peak", "peak"]
+
+
+# ── per-frame tempo clamp (sub-pulse noise vs octave-real variation) ────
+
+def test_clamp_drops_bimodal_subpulse_mode():
+    # The motivating case (2026-06-01 backend check): ~80% of a section's
+    # frames latched onto a ~107 BPM sub-pulse of a 152-BPM bass track
+    # (~0.7x — non-octave), ~20% read the true ~155. Mean of the raw
+    # frames drags to ~115 (a spurious "breakdown" on a peak-energy
+    # stretch); mean of the clamped frames must sit at the true tempo.
+    # 107 dies in the inter-band gap (95 .. 121.6 for anchor 152).
+    frames = [107.0] * 80 + [155.0] * 20
+    kept = off.clamp_frame_tempos(frames, 152.0)
+    assert kept == [155.0] * 20
+    assert sum(kept) / len(kept) > 140
+
+
+def test_clamp_gaps_exclude_pulse_ratios_but_keep_octaves():
+    g = 150.0
+    # Non-octave pulse ratios die in the gaps between octave bands...
+    for ratio in (1 / 3, 2 / 3, 0.75, 4 / 3, 1.5, 3.0):
+        assert off.clamp_frame_tempos([g * ratio, g], g) == [g]
+    # ...but octave-related frames and small drift are real music: kept.
+    for ratio in (0.45, 0.5, 0.85, 1.0, 1.15, 2.0):
+        assert g * ratio in off.clamp_frame_tempos([g * ratio, g], g)
+
+
+def test_clamp_keeps_halftime_sections_at_original_value():
+    # Slow-groove shape from the 2026-06 A/B round: librosa's global
+    # anchor octave-locked to double-time (138 vs the true ~69 groove).
+    # The slow sections' frames sit at 0.5x the anchor — REAL musical
+    # content, not noise. They must survive at original values so slow
+    # sections stay slow (a single-band clamp flattened the whole track
+    # into an implausible all-peak arc). The lone in-band frame makes
+    # this discriminating: a single-band clamp would keep ONLY it (its
+    # zero-survivor fallback never fires), collapsing the mean to 138.
+    frames = [69.0] * 50 + [138.0]
+    assert off.clamp_frame_tempos(frames, 138.0) == frames
+
+
+def test_clamp_keeps_doubletime_sections():
+    # Fast-genre shape from the same round: real double-time stretches
+    # read ~2x the global anchor. A single-band clamp dropped those
+    # frames, dragged section means down 5-18 BPM, and flipped builds
+    # into breakdowns. The 2x octave band must keep them.
+    assert off.clamp_frame_tempos([226.0, 113.0], 113.0) == [226.0, 113.0]
+
+
+def test_clamp_tolerates_anchor_octave_lock():
+    # Adversarial-review probe: on ~180 BPM material librosa's tempo
+    # prior pulls the global anchor to half-time (~89). True-tempo
+    # frames then sit at ~2x the anchor; the octave grid keeps them
+    # (a single-band clamp kept ONLY the wrong-octave frames).
+    kept = off.clamp_frame_tempos([180.0, 180.5, 89.1], 89.1)
+    assert 180.0 in kept and 180.5 in kept
+
+
+def test_clamp_minority_evidence_outvotes_nonoctave_noise():
+    # Deliberate, pinned semantics: octave-coherent evidence wins no
+    # matter how outnumbered — the motivating case WAS an 80/20 noise
+    # majority. 99 noise frames at 0.7x + 1 true frame -> the one.
+    assert off.clamp_frame_tempos([107.0] * 99 + [152.0], 152.0) == [152.0]
+
+
+def test_clamp_keeps_all_without_global_anchor():
+    # No global tempo (0/None) -> nothing to clamp against, pass through.
+    assert off.clamp_frame_tempos([107.0, 155.0], 0.0) == [107.0, 155.0]
+    assert off.clamp_frame_tempos([107.0, 155.0], None) == [107.0, 155.0]
+
+
+def test_clamp_falls_back_when_no_frame_survives():
+    # Every frame at a non-octave ratio (nothing coherent anywhere on
+    # the octave grid) -> pass the raw data through unchanged and let
+    # downstream logic judge, rather than silently erasing the section.
+    frames = [107.0, 106.5, 108.2]   # all ~0.7x of 152, every octave
+    assert off.clamp_frame_tempos(frames, 152.0) == frames
+    assert off.clamp_frame_tempos([], 152.0) == []
