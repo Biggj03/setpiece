@@ -156,6 +156,16 @@ def test_open_into_slot_sends_twin_but_caller_keys_original(stub_arena,
     assert m == {str(mkv): (1, 1)}
 
 
+def test_clear_slot_posts_to_per_clip_clear_endpoint(stub_arena):
+    # Per-clip clear is the one that genuinely removes (the layer-level
+    # clear 204s but leaves clips behind) — pin the exact endpoint.
+    st = rs.ResolumeStager(rest_base=stub_arena, timeout=2.0)
+    assert st.clear_slot(2, 9) is True
+    method, path, _ = _StubArena.requests[-1]
+    assert (method, path) == ("POST",
+                              "/api/v1/composition/layers/2/clips/9/clear")
+
+
 def test_reachable_and_verify_readback(stub_arena):
     st = rs.ResolumeStager(rest_base=stub_arena, timeout=2.0)
     assert st.reachable() is True

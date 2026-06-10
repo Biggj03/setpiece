@@ -174,6 +174,21 @@ class ResolumeState:
             return False
         return self._put_param_by_id(pid, value)
 
+    def layer_opacity_param(self, layer: int):
+        """Return (param_id, current_value) for a layer's video opacity, or
+        None if the layer/param can't be read. Pairs with set_param_by_id
+        for set-and-restore round-trips (the selfcheck uses it to prove the
+        by-id PUT mechanism — the same one arc-intensity rides — actually
+        lands on a live param). Never raises."""
+        ly = self._get(f"composition/layers/{int(layer)}")
+        if not ly:
+            return None
+        try:
+            op = ly["video"]["opacity"]
+            return (op["id"], float(op["value"]))
+        except (KeyError, TypeError, ValueError):
+            return None
+
     def set_effect_param(self, effect_name, param_name, value, layer=None):
         """Set an effect parameter by (effect name, param name) -> resolve
         live id -> PUT by id. `value` is whatever the param takes (0..1 for a

@@ -140,6 +140,26 @@ class ResolumeStager:
             logger.warning("Arena open L%sC%s failed: %s", layer, column, e)
             return False
 
+    def clear_slot(self, layer: int, column: int) -> bool:
+        """Remove the clip in (layer, column). Returns True on success.
+
+        Uses the PER-CLIP clear endpoint — the layer-level
+        `layers/{L}/clear` returns 204 but does not actually remove
+        clips (they silently survive until something loads over them);
+        per-clip clear genuinely removes. This is the undo for
+        open_into_slot, e.g. cleaning up a probe clip after a check.
+        """
+        req = urllib.request.Request(
+            f"{self._rest}/composition/layers/{int(layer)}"
+            f"/clips/{int(column)}/clear",
+            data=b"", method="POST")
+        try:
+            with urllib.request.urlopen(req, timeout=self._timeout) as r:
+                return r.status in (200, 204)
+        except Exception as e:
+            logger.warning("Arena clear L%sC%s failed: %s", layer, column, e)
+            return False
+
     def slot_loaded(self, layer: int, column: int) -> bool:
         """True if the slot now holds a file (fileinfo present). Use as a
         readback check after open_into_slot — Arena can 204 an `open` and
