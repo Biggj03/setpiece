@@ -35,7 +35,15 @@ one process except the taggers, which are independent offline tools.
   implementation; `beatnet_detector.py` is an opt-in PLL upgrade and
   `stem_daemon.py` an opt-in neural drum-stem path.
 - **Set arc** — `set_arc.py` / `auto_set_arc.py` model the performance as
-  a 4-phase macro structure and bias the picker per phase.
+  a 4-phase macro structure and bias the picker per phase. The phase
+  vocabulary and thresholds live in `set_arc_thresholds.py`, shared with
+  `set_arc_offline.py` — an offline analyzer that segments a known track
+  (librosa, optional dep), classifies each section with the *same*
+  `classify()` the live detector uses, and writes a `<track>.arc.json`
+  sidecar. The consumption API ships with it (`load_phase_track()` /
+  `phase_at()`, position-based lookup with live-detection fallback), but
+  the auto-arc watcher does not call it yet — wiring the live side to
+  prefer sidecar ground truth on known tracks is roadmap.
 - **Tag store** — SQLite in WAL mode at `~/.setpiece/path_tags.db3`,
   holding files, tags and clip embeddings. Accessed via `path_tags.py` /
   `path_tags_v2.py`.
@@ -46,6 +54,49 @@ one process except the taggers, which are independent offline tools.
 - **Control surfaces** — `s2_controller.py`, `maschine_mk2.py` and
   `stream_deck.py` integrate HID/MIDI hardware. `osc_in.py` / `osc_out.py`
   bridge OSC.
+
+## Resolume bridge (optional render engine)
+
+Setpiece can hand rendering to **Resolume Arena** for live shows —
+gapless playback, real compositing, multi-screen out. The bridge is a
+set of small standalone stdlib-only modules, tested offline against
+fakes and stub servers (no Arena needed for the suite), running in
+their own process — deliberately decoupled from the main engine so a
+crash on either side never takes down the other.
+
+| Module | Role |
+|---|---|
+| `gig.py` | One-command launcher: panel + pre-flight + iPad URL |
+| `resolume_panel.py` | Touch panel web server (MIX / CLIPS / FX tabs) |
+| `resolume_out.py` | OSC commander — the live fire path |
+| `resolume_state.py` | REST reader — state snapshots, param control |
+| `resolume_stage.py` | REST loader — stage working sets into the grid |
+| `resolume_dynamic.py` | Stage-on-miss: off-grid picks load into a bounded ring |
+| `resolume_selfcheck.py` | Gig-readiness check (exit 0 = ready) |
+
+Two transports, split by job: **OSC** (UDP, fire-and-forget,
+sub-millisecond) carries everything on the live path — clip fires,
+opacity, crossfader, tempo, blackout. **REST** (HTTP) handles setup and
+readback — loading clips into grid slots, state snapshots, parameter
+discovery. Nothing on the hot path ever blocks on HTTP.
+
+The grid is managed as a **working set**: a curated subset of the
+library staged into Arena's columns, with a filepath → (layer, column)
+registry so the show driver fires by path without knowing grid
+geometry. A fired path the grid doesn't hold is a *miss*, which
+`resolume_dynamic` resolves by loading that one clip into a bounded
+ring of recycled columns over REST (~150 ms, on a worker thread) and
+firing it — so every pick reaches Arena (a flurry of misses coalesces
+to the newest) without the grid growing unbounded over a multi-hour
+set.
+
+Two gig-safety guards live here: staging resolves containers Arena
+can't open (`.mkv`, `.webm` — including ones that load but render
+black) to same-stem `.mp4` twins, and the selfcheck exercises every
+subsystem end-to-end against the live Arena before doors, restoring
+the values it changes and removing its probe clips (its header
+discloses the small residue it can't undo, e.g. Arena's column
+auto-growth).
 
 ## The clip-state model
 

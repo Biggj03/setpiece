@@ -50,7 +50,11 @@ Setpiece is built on one core idea:
 - **Set arc** — a performance is modelled as a 4-phase macro structure
   (Opening → Build → Peak → Breakdown). Drive it manually or let the
   auto-arc watcher advance phases from BPM and cut-rate. At a peak the
-  engine holds one hero clip instead of machine-gunning cuts.
+  engine holds one hero clip instead of machine-gunning cuts. For known
+  tracks, an offline analyzer (`set_arc_offline.py`) can pre-compute the
+  phase track from the audio itself into a sidecar, with a small read
+  API for the live side to consume as ground truth (the auto-arc
+  watcher doesn't call it yet — live wiring is on the roadmap).
 - **Automatic visual-attribute tagging** — offline taggers analyse the
   library once along VJ-native axes (color, geometry, energy/movement,
   symmetry, subject placement, intro detection, CLIP embeddings). No manual
@@ -127,6 +131,30 @@ its settings.
 Arena setup: Preferences → OSC (input on, port 7000) + Webserver (on, port
 8080). The panel auto-reconnects if Arena restarts mid-set. Point it at
 Arena on another machine with `python gig.py --arena-host <ip>`.
+
+**Deck prep** — load a folder of clips into Arena's grid from the
+command line, one column per clip:
+
+```sh
+python resolume_stage.py path/to/clips --layer 1
+```
+
+It resolves known-bad containers to their `.mp4` twins automatically
+(Arena rejects `.mkv`/`.webm`, and some load silently black — keep
+remuxed twins beside them and the stager swaps at load time).
+
+**Gig-readiness check** — before doors, one command exercises the whole
+bridge against the running Arena (OSC verbs with read-back verification,
+clip staging, the dynamic-staging path, parameter control), restoring
+the state it touches — and the module header is explicit about the few
+things it can't restore:
+
+```sh
+python resolume_selfcheck.py    # exit 0 = gig-ready
+```
+
+It is visibly disruptive for the ~3 seconds it runs (output blacks out
+and returns, a probe clip flashes) — a soundcheck tool, not a mid-set one.
 
 ## Documentation
 

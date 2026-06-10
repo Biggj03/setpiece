@@ -248,7 +248,7 @@ def main(argv) -> int:
         return 1
     st = ResolumeStager(rest_base=a.rest)
     if not st.reachable():
-        print(f"Arena REST not reachable at {a.rest} — is Arena running "
+        print(f"Arena REST not reachable at {a.rest} - is Arena running "
               "with the webserver enabled?")
         return 2
     mapping = st.stage_working_set(files, layer=a.layer,
