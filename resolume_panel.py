@@ -1,13 +1,13 @@
 """
 Standalone iPad control panel for Resolume Arena.
 
-WHY STANDALONE (not wired into main.py):
-  CineQ's main.py is a ~12.5k-line live-prototyped god-object. Bolting a
+WHY STANDALONE (not wired into the show engine):
+  A live-prototyped show engine is a fast-moving monolith. Bolting a
   control surface into it means merge pain while it's actively evolving,
   and couples the panel's uptime to the whole rig. Instead this is its
   OWN process: it imports only the clean, self-tested Resolume bridge
-  modules and talks straight to Arena. If CineQ crashes mid-set, the iPad
-  still controls Arena from here. That decoupling is a bar-show win.
+  modules and talks straight to Arena. If the engine crashes mid-set, the
+  iPad still controls Arena from here. That decoupling is a bar-show win.
 
 WHAT IT IS:
   A tiny stdlib (ThreadingHTTPServer) web server that:

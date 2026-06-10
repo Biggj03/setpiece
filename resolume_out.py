@@ -1,36 +1,40 @@
 """
-Resolume Arena control bridge for the CineQ VJ rig.
+Resolume Arena control bridge for Setpiece.
 
 This is the OTHER half of osc_out.py. Where osc_out *announces* rig state
-(/cineq/clip, /cineq/fire, ...) to whoever's listening, this module
+(/cineq/clip, /cineq/fire, ... — the announce address space keeps its
+legacy prefix; external listeners are configured against it), this module
 *commands* Resolume Arena's clip grid over its native OSC control surface
 (/composition/layers/N/clips/M/connect, ...).
 
-THE VISION (2026-05-29):
-  CineQ is the editorial brain — the lyric picker decides WHAT clip, WHEN
-  to cut, HOW LONG to hold, how to build the set arc. Resolume Arena is the
+THE SPLIT:
+  The show driver — whatever picks clips: an operator at the touch panel,
+  a playlist script, an automation layer — decides WHAT clip, WHEN to
+  cut, HOW LONG to hold, how to build the set arc. Resolume Arena is the
   render muscle — gapless playback, real compositing, layer blends,
-  transitions, effects, NDI/multi-screen out. The picker decides; Resolume
+  transitions, effects, NDI/multi-screen out. The driver decides; Resolume
   performs. This bridge is the nervous system between them.
 
-  It solves three things the single-libmpv-window body never could:
+  It solves three things a single-window software player never could:
     - gapless flips (Arena is gapless natively — no render-API rebuild)
     - the whole "output side" (crossfades, effect transitions, hero-hold
       as a LAYER instead of a hard cut, multi-clip compositing on the drop)
-    - the 4GB VRAM ceiling (Arena owns its own GPU pipeline)
+    - the GPU pipeline (Arena owns its own; no VRAM ceiling in this process)
 
 ARCHITECTURE:
-  CineQ's library is ~6000 files; Resolume's grid is finite. The bridge
-  keeps a *working-set* model: Resolume holds a curated set of clips in its
-  grid, and CineQ maps its picker decisions onto grid slots by filepath via
-  a registry (register_clip / fire_clip). A filepath the grid doesn't hold
-  is a logged MISS — the seam where dynamic file-staging (open a file into a
-  slot via Arena's REST API, then connect) plugs in later.
+  A media library can run to thousands of files; Resolume's grid is finite.
+  The bridge keeps a *working-set* model: Resolume holds a curated set of
+  clips in its grid, and the show driver maps its decisions onto grid slots
+  by filepath via a registry (register_clip / fire_clip). A filepath the
+  grid doesn't hold is a logged MISS — the seam resolume_dynamic plugs
+  into (stage the file into a slot via resolume_stage's REST loader, then
+  connect).
 
-WHY OSC (not the REST/MCP path) for the live runtime:
+WHY OSC (not REST) for the live runtime:
   OSC over local UDP is fire-and-forget, sub-millisecond, and keeps no agent
-  in the loop. The MCP/REST surface is for prototyping + grid setup; this
-  OSC bridge is what runs during a live set. Same separation as osc_out.
+  in the loop. The REST surface is for setup (resolume_stage) and readback
+  (resolume_state); this OSC bridge is what runs during a live set. Same
+  separation as osc_out.
 
 Resolume's OSC address space (Arena 7+), the subset we drive:
   /composition/layers/{L}/clips/{C}/connect              int 1   trigger clip
@@ -69,10 +73,10 @@ DEFAULT_RESOLUME_PORT = 7000
 class ResolumeBridge:
     """Fire-and-forget OSC commander for Resolume Arena's clip grid.
 
-    Holds a filepath -> (layer, column) registry so the picker can call
+    Holds a filepath -> (layer, column) registry so the show driver can call
     ``fire_clip(path)`` without knowing grid geometry. Populate the registry
-    when you stage CineQ's working set into Arena (a bank, a folder, a
-    curated scene).
+    when you stage a working set into Arena (a bank, a folder, a curated
+    scene) — resolume_stage.stage_working_set returns exactly this mapping.
     """
 
     def __init__(self, host: str = "127.0.0.1",
@@ -173,10 +177,10 @@ class ResolumeBridge:
         """
         self._dynamic = stager
 
-    # -- high-level picker-facing commands ----------------------------------
+    # -- high-level show-driver commands -------------------------------------
 
     def fire_clip(self, filepath: str) -> bool:
-        """The picker fired this file -> connect its Resolume slot.
+        """The show driver fired this file -> connect its Resolume slot.
 
         HIT: the clip is staged -> connect it, return True.
         MISS: not staged. If a dynamic stager is attached, hand it the clip

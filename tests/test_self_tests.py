@@ -18,6 +18,7 @@ import io
 import osc_out
 import resolume_out
 import resolume_dynamic
+import resolume_stage
 
 
 def _run_quietly(fn):
@@ -37,6 +38,10 @@ def test_resolume_out_self_test():
 
 def test_resolume_dynamic_self_test():
     _run_quietly(resolume_dynamic._self_test)
+
+
+def test_resolume_stage_self_test():
+    _run_quietly(resolume_stage._self_test)
 
 
 # ── granular OSC wire-format invariants ────────────────────────────────

@@ -1,13 +1,13 @@
 """
-Dynamic stage-on-miss for the CineQ -> Resolume bridge.
+Dynamic stage-on-miss for the Setpiece -> Resolume bridge.
 
 THE GAP THIS CLOSES:
-  The picker fires from the WHOLE library; Arena's grid only holds the
-  ~36 clips staged for the current song (resolume_song_pool +
-  resolume_stage). A pick that's in the pool lights Arena; a pick that
-  ISN'T is a MISS (resolume_out.ResolumeBridge.fire_clip returns False) —
-  it plays in libmpv but Arena shows nothing. So Arena renders only a
-  SUBSET of the picker's choices.
+  The show driver fires from the WHOLE library; Arena's grid only holds
+  the working set staged for the current stretch of the show
+  (resolume_stage). A fire that's in the staged pool lights Arena; one
+  that ISN'T is a MISS (resolume_out.ResolumeBridge.fire_clip returns
+  False) and nothing renders. So Arena shows only a SUBSET of the
+  driver's choices.
 
   DynamicStager closes that seam: on a MISS, load that one off-pool clip
   into a reserved Arena slot over REST (~150ms), register it on the
@@ -20,10 +20,10 @@ DESIGN (decided with the operator, 2026-05-30):
     stuttering the rig.
   - COALESCING worker (pending depth 1). A flurry of misses can outpace
     REST. Rather than queue them all and fall behind, we keep only the
-    NEWEST pending miss — by the time a stale one would load, the picker
+    NEWEST pending miss — by the time a stale one would load, the show
     has already moved on, so showing the latest is correct.
   - BOUNDED RING. Dynamic clips live in a fixed band of N columns (default
-    8) on the picker layer, starting just past the staged pool's
+    8) on the staging layer, starting just past the staged pool's
     high-water column. Slots recycle oldest-first, so a multi-hour set
     never balloons Arena's grid. The band never overlaps the staged pool.
 
@@ -33,8 +33,8 @@ DESIGN (decided with the operator, 2026-05-30):
 GRID LAYOUT (v1 single-layer):
     columns:  1 .............. P | P+1 ... P+N
               [ staged song pool ] [ dynamic ring ]
-  P = pool high-water (set per song via set_pool_high_water). The ring is
-  P+1 .. P+N on the same picker layer (default 1).
+  P = pool high-water (set per working set via set_pool_high_water). The
+  ring is P+1 .. P+N on the same staging layer (default 1).
 """
 
 import logging
@@ -51,7 +51,7 @@ class DynamicStager:
     """Loads off-pool clips into a bounded ring of Arena slots on a MISS,
     then fires them. Wraps a persistent REST stager + the OSC bridge.
 
-    Wire-up: created once when the song first stages (so it shares the
+    Wire-up: created once when the working set first stages (so it shares the
     live ResolumeStager and knows the pool's column high-water), then
     handed to the bridge as its miss handler. fire path:
 
@@ -87,8 +87,8 @@ class DynamicStager:
     def set_pool_high_water(self, col: int) -> None:
         """Set the staged pool's high-water column. The dynamic ring sits
         at col+1 .. col+ring_size, so it never collides with the pool.
-        Call this each time a new song stages its pool. Resets the ring
-        (the previous song's dynamic clips are stale)."""
+        Call this each time a new working set stages its pool. Resets the
+        ring (the previous set's dynamic clips are stale)."""
         self._pool_high_water = max(0, int(col))
         self._cursor = 0
         self._slot_path.clear()
